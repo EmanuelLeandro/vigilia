@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Farmaplus Analytics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <div class="max-w-7xl mx-auto p-6" id="capture">
+        <div class="flex items-center justify-between bg-white p-6 rounded-3xl shadow-sm mb-6 border border-slate-100 no-print">
+            <div>
+              <div class="flex items-center">
+    <img src="logo.jpg" alt="Farmaplus Analytics" class="h-36 w-auto object-contain">
+</div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btnPdf" class="hidden bg-slate-800 text-white px-5 py-2 rounded-xl font-semibold hover:bg-slate-900 transition">PDF</button>
+                <button id="btnClear" class="hidden bg-slate-200 text-slate-700 px-5 py-2 rounded-xl font-semibold hover:bg-slate-300 transition">Limpiar filtros</button>
+                <button id="btnDelete" class="hidden bg-red-500 text-white px-5 py-2 rounded-xl font-semibold hover:bg-red-600 transition">Eliminar datos</button>
+                <label class="cursor-pointer bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-blue-700 transition">
+                    Cargar Excel <input type="file" id="input" class="hidden" accept=".xlsx, .xls">
+                </label>
+            </div>
+        </div>
+
+        <div id="controls" class="hidden my-6 grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
+            <select id="sucursalFilter" class="p-4 border border-slate-200 rounded-2xl shadow-sm w-full outline-none font-bold text-slate-700"></select>
+            <select id="motivoFilter" class="p-4 border border-slate-200 rounded-2xl shadow-sm w-full outline-none font-bold text-slate-700">
+                <option value="TODOS">Todos los motivos</option>
+            </select>
+            <select id="observacionFilter" class="p-4 border border-slate-200 rounded-2xl shadow-sm w-full outline-none font-bold text-slate-700">
+                <option value="TODAS">Todas las observaciones</option>
+            </select>
+        </div>
+
+        <div id="dashboard" class="hidden space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs mb-6">Resumen financiero</h3>
+                    <div id="statsContainer" class="flex flex-col gap-4"></div>
+                </div>
+                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                    <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs mb-6">Motivos frecuentes</h3>
+                    <div class="flex justify-between text-[10px] text-slate-400 uppercase font-bold mb-2">
+                        <span>Motivo</span>
+                        <span>Movimientos y Unidades</span>
+                    </div>
+                    <div id="motivosContainer" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 class="font-bold text-xl text-slate-800 mb-6" id="tableTitle">Movimientos</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-slate-400 uppercase text-[10px] tracking-widest border-b border-slate-100">
+                                <th class="py-4 px-2 text-left">Fecha</th>
+                                <th class="py-4 px-2 text-left">Sucursal</th>
+                                <th class="py-4 px-2 text-left">Usuario / ID</th>
+                                <th class="py-4 px-2 text-left">Producto</th>
+                                <th class="py-4 px-2 text-left">Motivo</th>
+                                <th class="py-4 px-2 text-right">Monto</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topGravesContainer"></tbody>
+                    </table>
+                </div>
+                <div class="mt-8 flex justify-center">
+                    <button id="toggleViewBtn" class="text-blue-600 font-bold hover:underline">Ver todos los movimientos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-lg w-full">
+            <h3 class="text-lg font-bold text-slate-800 mb-4">Detalle de Observación</h3>
+            <p id="modalContent" class="text-slate-600 mb-6 bg-slate-50 p-4 rounded-xl border"></p>
+            <button onclick="document.getElementById('modal').classList.add('hidden')" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold">Cerrar</button>
+        </div>
+    </div>
+
+    <script>
+        const MOTIVOS_CONFIG = ['Ajuste por bonificación de proveedores', 'Ajuste por fraccionados', 'Ajuste por ingreso de mercadería', 'Ajuste por inventario', 'Ajuste por trazabilidad', 'Ajuste por vale no retirado', 'Ajuste por error de ingreso', 'Ajuste por Fraccionador', 'Ajuste por Robo/Hurto', 'Devolucion a Proveedores', 'Devolucion ACE', 'Devolucion Comercial', 'Faltante', 'Roto/mal estado', 'Uso interno', 'Vencido'];
+        let fullData = [];
+        let viewAll = false;
+
+        function formatCurrency(val) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val); }
+        function formatDate(val) { const d = new Date(val); return isNaN(d.getTime()) ? val : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+
+        function showModal(idx) {
+            const item = fullData.find(x => x.id === idx);
+            document.getElementById('modalContent').innerText = item?.observacion || "No hay observaciones para este movimiento.";
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function handleFile(e) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const data = XLSX.read(evt.target.result, {type: 'binary', cellDates: true});
+                fullData = XLSX.utils.sheet_to_json(data.Sheets[data.SheetNames[0]]).map((row, i) => ({ 
+                    ...row, 
+                    id: i,
+                    CostoNum: parseFloat(row.TotalCosto || row.totalcosto || 0), 
+                    Unidades: parseInt(row.cantidad || row.Cantidad || 0),
+                    motivoRaw: row.motivo || '',
+                    observacion: row.observacion || row.Observacion || ''
+                }));
+                const sucursales = [...new Set(fullData.map(r => r.sucursal).filter(Boolean))].sort();
+                const observaciones = [...new Set(fullData.map(r => r.observacion).filter(Boolean))].sort();
+                
+                document.getElementById('sucursalFilter').innerHTML = `<option value="TODAS">Todas las sucursales</option>` + sucursales.map(s => `<option value="${s}">${s}</option>`).join('');
+                document.getElementById('motivoFilter').innerHTML = `<option value="TODOS">Todos los motivos</option>` + MOTIVOS_CONFIG.map(m => `<option value="${m}">${m}</option>`).join('');
+                document.getElementById('observacionFilter').innerHTML = `<option value="TODAS">Todas las observaciones</option>` + observaciones.map(o => `<option value="${o}">${o}</option>`).join('');
+                
+                document.getElementById('dashboard').classList.remove('hidden');
+                document.getElementById('controls').classList.remove('hidden');
+                document.getElementById('btnPdf').classList.remove('hidden');
+                document.getElementById('btnClear').classList.remove('hidden');
+                document.getElementById('btnDelete').classList.remove('hidden');
+                renderDashboard();
+            };
+            reader.readAsBinaryString(e.target.files[0]);
+        }
+
+        function renderDashboard() {
+            const sucursal = document.getElementById('sucursalFilter').value;
+            const motivoSel = document.getElementById('motivoFilter').value;
+            const obsSel = document.getElementById('observacionFilter').value;
+            
+            let data = sucursal === 'TODAS' ? fullData : fullData.filter(r => r.sucursal === sucursal);
+            if (motivoSel !== 'TODOS') data = data.filter(r => (r.motivoRaw || '').toLowerCase().trim() === motivoSel.toLowerCase().trim());
+            if (obsSel !== 'TODAS') data = data.filter(r => (r.observacion || '').trim() === obsSel.trim());
+            
+            const isAlta = (m) => ['ajuste por bonificación de proveedores', 'ajuste por fraccionados', 'ajuste por ingreso de mercadería', 'ajuste por inventario', 'ajuste por vale no retirado'].includes((m||'').toLowerCase().trim());
+            const isBaja = (m) => ['ajuste por error de ingreso', 'ajuste por fraccionador', 'ajuste por robo/hurto', 'devolucion a proveedores', 'devolucion ace', 'devolucion comercial', 'faltante', 'roto/mal estado', 'uso interno', 'vencido'].includes((m||'').toLowerCase().trim());
+
+            const altas = data.filter(r => isAlta(r.motivoRaw)).reduce((acc, r) => acc + r.CostoNum, 0);
+            const bajas = data.filter(r => isBaja(r.motivoRaw)).reduce((acc, r) => acc + r.CostoNum, 0);
+            const trazab = data.filter(r => (r.motivoRaw || '').toLowerCase().includes('trazabilidad')).reduce((acc, r) => acc + r.CostoNum, 0);
+            
+            document.getElementById('statsContainer').innerHTML = `
+                <div class="bg-emerald-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-emerald-700 font-bold uppercase">Altas</span><span class="text-xl font-black text-emerald-900">${formatCurrency(altas)}</span></div>
+                <div class="bg-red-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-red-700 font-bold uppercase">Bajas</span><span class="text-xl font-black text-red-900">${formatCurrency(bajas)}</span></div>
+                <div class="bg-amber-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-amber-700 font-bold uppercase">Trazables</span><span class="text-xl font-black text-amber-900">${formatCurrency(trazab)}</span></div>
+                <div class="bg-blue-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-blue-700 font-bold uppercase">Balance</span><span class="text-xl font-black text-blue-900">${formatCurrency(altas - bajas)}</span></div>
+            `;
+            const motivos = {};
+            data.forEach(r => { const m = r.motivoRaw || 'Sin motivo'; if(!motivos[m]) motivos[m] = { cant: 0, unid: 0 }; motivos[m].cant += 1; motivos[m].unid += (r.Unidades || 0); });
+            document.getElementById('motivosContainer').innerHTML = Object.entries(motivos).sort((a,b) => b[1].cant - a[1].cant).slice(0, 10).map(m => `<div class="flex justify-between border-b pb-2"><span class="text-sm font-semibold text-slate-700">${m[0]}</span><span class="text-xs text-slate-500 font-bold">${m[1].cant} | ${m[1].unid}</span></div>`).join('');
+            
+            let sortedData = [...data].sort((a,b) => b.CostoNum - a.CostoNum);
+            if (!viewAll) sortedData = sortedData.slice(0, 20);
+            document.getElementById('topGravesContainer').innerHTML = sortedData.map(r => `
+                <tr class="border-b border-slate-50">
+                    <td class="py-4 text-xs">${formatDate(r.Fecha)}</td>
+                    <td class="py-4 text-xs font-medium">${r.sucursal || ''}</td>
+                    <td class="py-4 cursor-pointer hover:bg-slate-50" onclick="showModal(${r.id})"><div class="font-bold text-xs">${r.usuario || '-'}</div><div class="text-blue-800 text-[10px] font-mono font-bold">${r.NroBaja || '-'}</div></td>
+                    <td class="py-4 text-xs">${r.producto || ''}</td>
+                    <td class="py-4 text-xs font-bold ${isAlta(r.motivoRaw) ? 'text-emerald-600' : (isBaja(r.motivoRaw) ? 'text-red-600' : 'text-amber-600')}">${r.motivoRaw}</td>
+                    <td class="py-4 text-right font-black text-xs">${formatCurrency(r.CostoNum)}</td>
+                </tr>`).join('');
+        }
+
+        document.getElementById('input').addEventListener('change', handleFile);
+        document.getElementById('btnClear').addEventListener('click', () => { 
+            document.getElementById('sucursalFilter').value = 'TODAS'; 
+            document.getElementById('motivoFilter').value = 'TODOS'; 
+            document.getElementById('observacionFilter').value = 'TODAS';
+            renderDashboard(); 
+        });
+        document.getElementById('btnDelete').addEventListener('click', () => { fullData = []; document.getElementById('dashboard').classList.add('hidden'); document.getElementById('controls').classList.add('hidden'); document.getElementById('btnClear').classList.add('hidden'); document.getElementById('btnDelete').classList.add('hidden'); });
+        document.getElementById('toggleViewBtn').addEventListener('click', () => { viewAll = !viewAll; renderDashboard(); });
+        document.getElementById('btnPdf').addEventListener('click', () => window.print());
+        document.getElementById('sucursalFilter').addEventListener('change', renderDashboard);
+        document.getElementById('motivoFilter').addEventListener('change', renderDashboard);
+        document.getElementById('observacionFilter').addEventListener('change', renderDashboard);
+    </script>
+</body>
+</html>
