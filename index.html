@@ -123,6 +123,8 @@
   <div id="barra-poder" class="barra-fondo" style="max-width:190px"><div class="barra-relleno" style="width:0%"></div></div>
   <div class="fila-hud">ESQUIVA <span style="opacity:.7">(Shift)</span></div>
   <div id="barra-dash" class="barra-fondo" style="max-width:120px"><div class="barra-relleno" style="width:100%"></div></div>
+  <div id="fila-escudo" class="fila-hud" style="display:none">ESCUDO</div>
+  <div id="barra-escudo" class="barra-fondo" style="max-width:150px;display:none"><div class="barra-relleno" style="width:0%;background:linear-gradient(180deg,#9adfff,#3e7fae)"></div></div>
 </div>
 <div id="info-derecha">
   <div>TIEMPO <b id="txt-tiempo">00:00</b></div>
@@ -184,6 +186,7 @@
   <button class="boton-fantasma" id="btn-mejoras-volver">volver</button>
 </section>
 
+<button id="btn-musica" aria-label="música" style="position:fixed;bottom:16px;right:64px;z-index:20;width:40px;height:40px;border-radius:50%;border:2px solid #5a4630;background:#20291a;color:#f3efe6;font-size:16px;cursor:pointer;">🎵̶</button>
 <button id="btn-sonido" aria-label="sonido">🔈</button>
 <div class="btn-tactil" id="btn-dash">💨</div>
 <div class="btn-tactil" id="btn-poder">⚡</div>
@@ -545,8 +548,8 @@ REGISTRO.mejoras=[
     aplicar:j=>{ if(j.basico.rango)j.basico.rango*=1.12;
                  if(j.especial.radio)j.especial.radio*=1.12;
                  if(j.especial.anchoOnda)j.especial.anchoOnda*=1.12; }},
-  {id:'vidaRoboMejora',estilo:'ofensivo',icono:'🩸',titulo:'Sed de sangre',desc:'Curás el 5% del daño que hacés',
-    aplicar:j=>{ j.lifesteal=(j.lifesteal||0)+0.05; }},
+  {id:'vidaRoboMejora',estilo:'ofensivo',icono:'🩸',titulo:'Sed de sangre',desc:'Al matar, curás el 3% del daño que hacés durante 10s (máx. 5% de tu vida máx./seg). Cada muerte renueva el efecto',
+    aplicar:j=>{ j.lifesteal=(j.lifesteal||0)+0.03; }},
   {id:'explosivoMejora',estilo:'ofensivo',icono:'💣',titulo:'Golpes explosivos',desc:'15% de probabilidad de dañar en área alrededor de tu objetivo',
     aplicar:j=>{ j.explosivoChance=(j.explosivoChance||0)+0.15; }},
 
@@ -557,8 +560,6 @@ REGISTRO.mejoras=[
     aplicar:j=>{ j.armadura=(j.armadura||0)+2; }},
   {id:'regenMejora',estilo:'defensivo',icono:'💚',titulo:'Regeneración',desc:'+1 de vida por segundo',
     aplicar:j=>{ j.regenPorSeg=(j.regenPorSeg||0)+1; }},
-  {id:'escudoMejora',estilo:'defensivo',icono:'🔵',titulo:'Escudo temporal',desc:'Escudo de 20 puntos que se recarga cada 14s',
-    aplicar:j=>{ j.escudoMax=(j.escudoMax||0)+20; j.escudoActual=j.escudoMax; }},
   {id:'reduccionMejora',estilo:'defensivo',icono:'🛡️',titulo:'Piel de piedra',desc:'-8% de todo el daño que recibís',
     aplicar:j=>{ j.reduccionDanio=Math.min(0.5,(j.reduccionDanio||0)+0.08); }},
   {id:'resistenciaMejora',estilo:'defensivo',icono:'♻️',titulo:'Resistencia',desc:'-25% de duración de raíces y veneno en vos',
@@ -616,13 +617,15 @@ const dom={
   btnMejoras:$('btn-mejoras'), btnMejorasVolver:$('btn-mejoras-volver'), btnSangre:$('btn-sangre'),
   pantallaMejoras:$('pantalla-mejoras'), listaPermanentes:$('lista-permanentes'), mejorasRecursos:$('mejoras-recursos'),
   listaArmas:$('lista-armas'),
-  btnSonido:$('btn-sonido'), btnDash:$('btn-dash'), btnPoder:$('btn-poder'),
+  btnSonido:$('btn-sonido'), btnMusica:$('btn-musica'), btnDash:$('btn-dash'), btnPoder:$('btn-poder'),
   txtNivel:$('txt-nivel'), txtHeroe:$('txt-heroe'), txtTiempo:$('txt-tiempo'),
   txtKills:$('txt-kills'), txtOro:$('txt-oro'), txtCiclo:$('txt-ciclo'),
   barraHp:document.querySelector('#barra-hp .barra-relleno'),
   barraXp:document.querySelector('#barra-xp .barra-relleno'),
   barraPoder:document.querySelector('#barra-poder .barra-relleno'),
   barraDash:document.querySelector('#barra-dash .barra-relleno'),
+  barraEscudo:document.querySelector('#barra-escudo .barra-relleno'),
+  contEscudo:$('barra-escudo'), filaEscudo:$('fila-escudo'),
   objetivo:$('objetivo'), jefeUi:$('jefe-ui'), jefeNombre:$('jefe-nombre'), jefeBarra:$('jefe-barra'),
   tiempoFinal:$('tiempo-final'), killsFinal:$('kills-final'), nivelFinal:$('nivel-final'),
   cicloFinal:$('ciclo-final'), recordFinal:$('record-final'), btnCopiar:$('btn-copiar'),
@@ -676,6 +679,180 @@ const sonido={
 dom.btnSonido.addEventListener('click',()=>{
   sonido.iniciar(); sonido.activo=!sonido.activo;
   dom.btnSonido.textContent=sonido.activo?'🔊':'🔈';
+});
+
+/* ==================================================================
+   MÚSICA — orquesta sintetizada por código, sin archivos de audio.
+   Diseño para que NO canse en sesiones largas:
+   · Acordes de 7-9 segundos (no un loop corto): un ciclo completo de
+     la progresión dura más de 30 segundos, y encima camina por la
+     progresión con variación aleatoria en vez de repetirla siempre
+     en el mismo orden exacto.
+   · Volumen de fondo, nunca protagonista: es ambiente, no un tema
+     que compite con los efectos de sonido.
+   · Un motivo de corno aparece solo de vez en cuando (20-45s, al
+     azar) — el toque "épico", sin ser una melodía pegajosa fija.
+   · Durante el jefe, la MISMA progresión se acelera y suma un pulso
+     grave: se siente más intenso sin dejar de ser "el mismo tema".
+   Progresión propia (Re menor: i–VI–III–VII), NO es ninguna obra
+   existente — inspirada en el estilo, no una copia de nada.
+--------------------------------------------------------------- */
+const MUSICA={
+  /* ================================================================
+     BANDA SONORA — versión ALEGRE.
+     Do mayor, progresión I–V–vi–IV (la más "feliz" y reconocible del
+     repertorio popular — un lenguaje, no una obra puntual). Nada de
+     acordes graves ni tramos "misteriosos": todo el tiempo brillante,
+     saltarín, con un bajo pizzicato marcando el rebote. Dos melodías
+     cortas que se van alternando para que no sea el mismo compás de
+     8 segundos machacando siempre igual.
+     En modo jefe: mismo material, más rápido y con un poco de brillo
+     percusivo extra — más energía, sigue siendo alegre, no oscuro.
+     ================================================================ */
+  activo:false, modo:'explorar', vivo:false, idProgramado:null,
+  seccionIdx:0,
+
+  // Do mayor: C - G - Am - F (la progresión "pop" de siempre)
+  progresion:[
+    [261.63,329.63,392.00],  // C  (C4 E4 G4)
+    [196.00,246.94,392.00],  // G  (G3 B3 G4)
+    [220.00,261.63,329.63],  // Am (A3 C4 E4)
+    [174.61,220.00,261.63],  // F  (F3 A3 C4)
+  ],
+  bajos:[130.81,98.00,110.00,87.31],   // raíz de cada acorde, un registro abajo, para el pizzicato
+
+  /* dos frases alegres y saltarinas, en Do mayor — se alternan */
+  temas:[
+    [ {f:392.00,d:0.28},{f:329.63,d:0.28},{f:261.63,d:0.28},{f:329.63,d:0.28},
+      {f:392.00,d:0.55},{f:440.00,d:0.28},{f:392.00,d:0.28},{f:329.63,d:0.55} ],
+    [ {f:261.63,d:0.28},{f:329.63,d:0.28},{f:392.00,d:0.28},{f:523.25,d:0.55},
+      {f:440.00,d:0.28},{f:392.00,d:0.28},{f:329.63,d:0.55},{f:392.00,d:0.4} ],
+  ],
+
+  _ctx(){ sonido.iniciar(); return sonido.ctx; },
+
+  // pad brillante y corto: da cuerpo debajo de la melodía sin volverse "épico"
+  _cuerdas(frecs,inicioT,duracion,vol){
+    const ctx=this._ctx();
+    for(const fr of frecs){
+      const o=ctx.createOscillator(), f=ctx.createBiquadFilter(), g=ctx.createGain();
+      o.type='triangle'; o.frequency.value=fr;
+      f.type='lowpass'; f.frequency.value=1600; f.Q.value=0.5;
+      o.connect(f); f.connect(g); g.connect(ctx.destination);
+      const ataque=0.25;
+      g.gain.setValueAtTime(0.0001,inicioT);
+      g.gain.exponentialRampToValueAtTime(vol,inicioT+ataque);
+      g.gain.setValueAtTime(vol,inicioT+duracion-0.3);
+      g.gain.exponentialRampToValueAtTime(0.0001,inicioT+duracion);
+      o.start(inicioT); o.stop(inicioT+duracion+0.05);
+    }
+  },
+
+  // bajo pizzicato: pulso corto y seco, es lo que da el "rebote" alegre
+  _pizzicato(freq,inicioT,vol){
+    const ctx=this._ctx();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(vol,inicioT);
+    g.gain.exponentialRampToValueAtTime(0.0001,inicioT+0.22);
+    o.start(inicioT); o.stop(inicioT+0.25);
+  },
+
+  // melodía: timbre brillante con un vibrato ligero — flauta/silbido alegre
+  _melodia(freq,inicioT,duracion,vol){
+    const ctx=this._ctx();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    const lfo=ctx.createOscillator(), lfoG=ctx.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    lfo.type='sine'; lfo.frequency.value=6; lfoG.gain.value=freq*0.008;
+    lfo.connect(lfoG); lfoG.connect(o.frequency);
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001,inicioT);
+    g.gain.exponentialRampToValueAtTime(vol,inicioT+0.05);
+    g.gain.setValueAtTime(vol,inicioT+Math.max(0.05,duracion-0.08));
+    g.gain.exponentialRampToValueAtTime(0.0001,inicioT+duracion);
+    lfo.start(inicioT); o.start(inicioT);
+    lfo.stop(inicioT+duracion+0.05); o.stop(inicioT+duracion+0.05);
+  },
+
+  // chispa/campanita: un toque de brillo al principio de cada frase
+  _campana(freq,inicioT,vol){
+    const ctx=this._ctx();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=freq;
+    o.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(vol,inicioT);
+    g.gain.exponentialRampToValueAtTime(0.0001,inicioT+0.9);
+    o.start(inicioT); o.stop(inicioT+1.0);
+  },
+
+  // acento ligero (solo en jefe): un "clic" brillante que da urgencia sin oscurecer
+  _acento(inicioT,vol){
+    const ctx=this._ctx();
+    if(!sonido.ruido)return;
+    const s=ctx.createBufferSource(), f=ctx.createBiquadFilter(), g=ctx.createGain();
+    s.buffer=sonido.ruido; f.type='highpass'; f.frequency.value=2500;
+    s.connect(f); f.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(vol,inicioT);
+    g.gain.exponentialRampToValueAtTime(0.0001,inicioT+0.06);
+    s.start(inicioT); s.stop(inicioT+0.07);
+  },
+
+  /* una sección = un recorrido completo por los 4 acordes, con bajo
+     saltando en cada uno y una de las dos melodías por encima */
+  _seccionTema(inicioT,dur,cancionIdx,enJefe){
+    const porAcorde=dur/4;
+    for(let i=0;i<4;i++){
+      const t0=inicioT+i*porAcorde;
+      this._cuerdas(this.progresion[i],t0,porAcorde+0.25, enJefe?0.02:0.017);
+      this._pizzicato(this.bajos[i],t0, enJefe?0.05:0.04);
+      this._pizzicato(this.bajos[i],t0+porAcorde*0.5, enJefe?0.042:0.034);
+      if(enJefe) this._acento(t0+porAcorde*0.25, 0.03);
+    }
+    const tema=this.temas[cancionIdx%this.temas.length];
+    const factorRitmo=enJefe?0.8:1;   // en jefe, un poco más rápida y viva
+    let t=inicioT+0.15;
+    for(const nota of tema){ this._melodia(nota.f,t,nota.d*factorRitmo+0.05, enJefe?0.036:0.03); t+=nota.d*factorRitmo; }
+    this._campana(523.25,inicioT+0.1,0.022);
+  },
+
+  secuencias:{
+    explorar:[ {d:15,cancion:0}, {d:15,cancion:1} ],
+    jefe:     [ {d:9, cancion:0}, {d:9, cancion:1} ],
+  },
+
+  _avanzarSeccion(){
+    if(!this.activo || !this.vivo)return;
+    const ctx=this._ctx();
+    const secuencia=this.secuencias[this.modo]||this.secuencias.explorar;
+    const paso=secuencia[this.seccionIdx%secuencia.length];
+    const inicioT=ctx.currentTime+0.05;
+    this._seccionTema(inicioT,paso.d,paso.cancion,this.modo==='jefe');
+    this.seccionIdx++;
+    this.idProgramado=setTimeout(()=>this._avanzarSeccion(), paso.d*1000);
+  },
+
+  iniciar(){
+    if(this.vivo)return;
+    this.vivo=true; this.activo=true; this.seccionIdx=0;
+    this._avanzarSeccion();
+  },
+  detener(){
+    this.vivo=false;
+    if(this.idProgramado)clearTimeout(this.idProgramado);
+  },
+  cambiarModo(nuevo){
+    if(this.modo===nuevo)return;
+    this.modo=nuevo; this.seccionIdx=0;
+  },
+};
+
+dom.btnMusica.addEventListener('click',()=>{
+  MUSICA.activo=!MUSICA.activo;
+  dom.btnMusica.textContent=MUSICA.activo?'🎵':'🎵̶';
+  if(MUSICA.activo && mundo && mundo.corriendo) MUSICA.iniciar();
+  else MUSICA.detener();
 });
 
 /* ---------------------------------------------------------------
@@ -1357,7 +1534,7 @@ function estadoInicial(idHeroe,cicloInicial=1){
     venenoTimer:0, venenoDps:0, venenoAcum:0,
     /* Ágil */ dashDistMult:1, dashDanioBonusPct:0, dashDanioBonusTimer:0,
     autoDodgeChance:0, critMoveThreshold:0, critBonusTemp:0, critBonusTempTimer:0, distanciaAcum:0,
-    /* Ofensivo */ lifesteal:0, explosivoChance:0,
+    /* Ofensivo */ lifesteal:0, explosivoChance:0, lifestealCurado:0, lifestealTimer:1, lifestealVentana:0,
     /* Defensivo */ armadura:0, regenPorSeg:0, regenAcum:0,
     escudoMax:0, escudoActual:0, escudoCargaTimer:0, reduccionDanio:0, resistenciaEstados:0,
     /* Mágico */ onHitSlow:false, onHitVeneno:false, onCritExplosion:false,
@@ -1515,7 +1692,12 @@ function golpearObjetivo(obj,base,ex=0,ey=0,esSplash=false){
   if(crit){ sonido.critico(); sacudir(5,0.12); mundo.hitStop=Math.max(mundo.hitStop,0.05); }
   else sonido.impacto();
 
-  if(j.lifesteal) j.hp=Math.min(j.hpMax, j.hp+danioFinal*j.lifesteal);   // Ofensivo: robo de vida
+  if(j.lifesteal && j.lifestealVentana>0){    // Ofensivo: robo de vida, solo durante la racha
+    const capPorSegundo=j.hpMax*0.05;      // nunca más del 5% de tu vida máxima por segundo
+    const disponible=Math.max(0,capPorSegundo-j.lifestealCurado);
+    const curar=Math.min(danioFinal*j.lifesteal, disponible);
+    if(curar>0){ j.hp=Math.min(j.hpMax,j.hp+curar); j.lifestealCurado+=curar; }
+  }
 
   if(!esSplash){    // los procs de área nunca se re-disparan a sí mismos (sin cadenas infinitas)
     if(j.onHitSlow && obj.slowFactor!==undefined){          // Mágico: Toque de Escarcha
@@ -1526,16 +1708,20 @@ function golpearObjetivo(obj,base,ex=0,ey=0,esSplash=false){
       obj.envenenadoDps=Math.max(obj.envenenadoDps||0, Math.round(base*0.12));
     }
     if(j.explosivoChance && Math.random()<j.explosivoChance){   // Ofensivo: ataques explosivos
+      let alcanzados=0;
       for(const otro of objetivosVivos()){
+        if(alcanzados>=8)break;    // tope: nunca encadena a toda una horda densa de una vez
         if(otro===obj)continue;
-        if(Math.hypot(otro.x-obj.x,otro.y-obj.y)<55) golpearObjetivo(otro, danioFinal*0.5, 0,0,true);
+        if(Math.hypot(otro.x-obj.x,otro.y-obj.y)<55){ golpearObjetivo(otro, danioFinal*0.5, 0,0,true); alcanzados++; }
       }
       chispas(obj.x,obj.y,'#ff8a3d',10,110); sonido.erupcion();
     }
     if(crit && j.onCritExplosion){        // Mágico: Chispa Elemental
+      let alcanzados=0;
       for(const otro of objetivosVivos()){
+        if(alcanzados>=8)break;
         if(otro===obj)continue;
-        if(Math.hypot(otro.x-obj.x,otro.y-obj.y)<70) golpearObjetivo(otro, danioFinal*0.4, 0,0,true);
+        if(Math.hypot(otro.x-obj.x,otro.y-obj.y)<70){ golpearObjetivo(otro, danioFinal*0.4, 0,0,true); alcanzados++; }
       }
       chispas(obj.x,obj.y,'#c9a0ff',10,120);
     }
@@ -1872,6 +2058,7 @@ function actualizarJefe(dt){
   dom.jefeBarra.style.width=Math.max(0,pct*100)+'%';
 
   if(jf.hp<=0){
+    if(mundo.jugador.lifesteal)mundo.jugador.lifestealVentana=10;
     for(let i=0;i<50;i++)chispas(jf.x,jf.y-20,i%3===0?'#ffd166':(i%2?'#63a04f':'#6b4a2e'),1,260);
     for(let i=0;i<3;i++)mundo.efectos.push({tipo:'aura',t:-i*0.12,duracion:0.7,radioMax:160+i*60,color:'255,209,102',cx:jf.x,cy:jf.y});
     mundo.hitStop=0.5;                 // cámara lenta del golpe final
@@ -1992,6 +2179,7 @@ function actualizar(dt){
     }
     if(mundo.killsCiclo>=CONFIG.curvas.metaKills(mundo.ciclo)){
       mundo.estadoNivel='cinematica'; mundo.cineT=0;
+      MUSICA.cambiarModo('jefe');
       invocarJefe();
     }
   }
@@ -2042,6 +2230,9 @@ function actualizar(dt){
   }
   if(j.dashDanioBonusTimer>0)j.dashDanioBonusTimer-=dt;      // Ágil: bono de daño post-esquiva
   if(j.critBonusTempTimer>0)j.critBonusTempTimer-=dt;        // Ágil: crítico cargado por movimiento
+  j.lifestealTimer-=dt;                                       // Ofensivo: reinicia el tope de robo de vida
+  if(j.lifestealTimer<=0){ j.lifestealTimer=1; j.lifestealCurado=0; }
+  if(j.lifestealVentana>0)j.lifestealVentana-=dt;             // Ofensivo: la racha se apaga si no matás
   if(j.regenPorSeg){                                          // Defensivo: regeneración lenta
     j.regenAcum=(j.regenAcum||0)+dt;
     while(j.regenAcum>=1){ j.regenAcum-=1; j.hp=Math.min(j.hpMax,j.hp+j.regenPorSeg); }
@@ -2118,6 +2309,7 @@ function actualizar(dt){
   mundo.enemigos=mundo.enemigos.filter(en=>{
     if(en.hp<=0){
       mundo.kills++; mundo.killsCiclo++;
+      if(mundo.jugador.lifesteal)mundo.jugador.lifestealVentana=10;   // Sed de sangre: se renueva al matar
       if(en.elite){                 // botín garantizado del campeón
         for(let i=0;i<3;i++)mundo.botin.push({x:en.x+(Math.random()*24-12),y:en.y+(Math.random()*24-12),tipo:'oro',recolectado:false});
         chispas(en.x,en.y-en.radio,'#ffd166',10,150);
@@ -2377,6 +2569,10 @@ function actualizarHud(){
   dom.barraXp.style.width=Math.min(100,j.xp/j.xpSiguiente*100)+'%';
   dom.barraPoder.style.width=Math.min(100,(1-Math.max(0,j.especialTimer)/j.especial.cooldown)*100)+'%';
   dom.barraDash.style.width=Math.min(100,(1-Math.max(0,j.dashCd)/j.dashCooldownMax)*100)+'%';
+  if(j.escudoMax>0){
+    dom.contEscudo.style.display='block'; dom.filaEscudo.style.display='flex';
+    dom.barraEscudo.style.width=Math.max(0,j.escudoActual/j.escudoMax*100)+'%';
+  }
   const s=Math.floor(mundo.tiempo);
   dom.txtTiempo.textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   dom.txtKills.textContent=fmt(mundo.kills);
@@ -2827,12 +3023,15 @@ function iniciarPartida(idHeroe,cargado){
     mundo.killsCiclo=Math.min(cargado.killsCiclo,CONFIG.curvas.metaKills(cargado.ciclo)-1);
     mundo.ciclo=cargado.ciclo; mundo.intervaloActual=cargado.intervaloActual;
     Object.assign(mundo.jugador,cargado.jugador);
+    mundo.jugador.escudoMax=0; mundo.jugador.escudoActual=0; mundo.jugador.escudoCargaTimer=0;   // la mejora se retiró del juego
   }
   mundo.corriendo=true;
   dom.txtHeroe.textContent=REGISTRO.heroes[idHeroe].nombre.toUpperCase();
   dom.jefeUi.style.display='none';
   ocultarPantallas();
   actualizarHud();
+  MUSICA.cambiarModo('explorar');
+  if(MUSICA.activo)MUSICA.iniciar();
   if(idAnimacion)cancelAnimationFrame(idAnimacion);
   idAnimacion=requestAnimationFrame(cuadro);
 }
@@ -2912,6 +3111,7 @@ function reanudarTrasCiclo(){
   mundo.mundoDef=mundoParaCiclo(mundo.ciclo);
   mundo.jefe=null; dom.jefeUi.style.display='none';
   mundo.estadoNivel='oleadas';
+  MUSICA.cambiarModo('explorar');
   const O=mundo.mundoDef.oleadas;
   mundo.intervaloActual=Math.max(O.intervaloMinimo, O.intervaloInicial*CONFIG.curvas.presionOleadas(mundo.ciclo));
   mundo.proximaAparicion=0.8;
@@ -2925,6 +3125,7 @@ function reanudarTrasCiclo(){
 
 function terminarPartida(){
   mundo.corriendo=false;
+  MUSICA.detener();
   sonido.muerte(); sacudir(10,0.4);
   borrarRun();                                    // la partida infinita terminó
   const j=mundo.jugador;
