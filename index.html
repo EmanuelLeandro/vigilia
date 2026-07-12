@@ -1,185 +1,3091 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Farmaplus Analytics</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <style>
-        @media print { .no-print { display: none; } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vigilia — El Bosque Susurrante</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; overflow:hidden; background:#243d22; touch-action:none; }
+  body{ font-family:'Segoe UI', system-ui, sans-serif; color:#f3efe6; user-select:none; }
+  #juego{ position:fixed; inset:0; display:block; cursor:crosshair; }
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:fixed; top:0; left:0; right:0; z-index:10;
+    display:flex; flex-direction:column; gap:5px;
+    padding:14px 16px; pointer-events:none;
+  }
+  .barra-fondo{
+    width:100%; max-width:300px; height:13px;
+    background:#241a10; border-radius:4px; overflow:hidden;
+    border:2px solid #5a4630; box-shadow:0 2px 0 rgba(0,0,0,.35);
+  }
+  .barra-relleno{ height:100%; transition:width .1s ease; }
+  #barra-hp .barra-relleno{ background:linear-gradient(180deg,#ff7a6a,#c93a2f); }
+  #barra-xp .barra-relleno{ background:linear-gradient(180deg,#ffe08a,#d9a53a); }
+  #barra-poder .barra-relleno{ background:linear-gradient(180deg,#b39aff,#6a4fd0); }
+  #barra-dash .barra-relleno{ background:linear-gradient(180deg,#9adfff,#3e9fd0); }
+  .fila-hud{ display:flex; align-items:center; gap:8px; font-size:11px; color:#c9bfa8; letter-spacing:.6px; text-shadow:0 1px 0 #241a10; }
+  .fila-hud b{ color:#f3efe6; }
+  #info-derecha{ position:fixed; top:14px; right:16px; z-index:10; text-align:right; font-size:13px; color:#c9bfa8; text-shadow:0 1px 0 #241a10; }
+  #info-derecha b{ color:#f3efe6; font-size:16px; }
+  #info-derecha .oro{ color:#ffd166; }
+
+
+  /* objetivo del nivel, centrado arriba */
+  #objetivo{
+    position:fixed; top:12px; left:50%; transform:translateX(-50%);
+    z-index:10; font-size:13px; letter-spacing:.5px; color:#e8dcc0;
+    background:rgba(20,16,8,.55); border:1px solid #5a4630; border-radius:6px;
+    padding:5px 14px; pointer-events:none; text-shadow:0 1px 0 #241a10;
+  }
+  #objetivo b{ color:#ffd166; }
+
+  /* barra del jefe */
+  #jefe-ui{
+    position:fixed; top:44px; left:50%; transform:translateX(-50%);
+    z-index:10; width:min(520px,86vw); pointer-events:none; display:none; text-align:center;
+  }
+  #jefe-ui .nombre{ font-size:14px; letter-spacing:2px; color:#ffd166; text-shadow:0 2px 0 #241a10; margin-bottom:4px; }
+  #jefe-ui .barra-fondo{ max-width:none; height:15px; border-color:#8a1f22; }
+  #jefe-ui .barra-relleno{ background:linear-gradient(180deg,#ff7a6a,#8a1f22); width:100%; }
+
+  /* ---------- pantallas ---------- */
+  .pantalla{
+    position:fixed; inset:0; z-index:30;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px; text-align:center; padding:24px;
+    background:radial-gradient(ellipse at 50% 20%, rgba(63,107,58,.35), transparent 60%), rgba(16,22,13,.94);
+    overflow-y:auto;
+  }
+  .oculto{ display:none; }
+  .titulo-juego{ font-size:clamp(26px,8vw,44px); font-weight:800; letter-spacing:1px; text-shadow:0 3px 0 rgba(0,0,0,.4); }
+  .titulo-juego span{ color:#ffd166; }
+  .sub-mundo{ color:#8ec07c; font-size:13px; letter-spacing:3px; }
+  .subtitulo{ color:#c9bfa8; font-size:14px; max-width:380px; line-height:1.5; }
+  .boton{
+    font-size:15px; font-weight:700; letter-spacing:.5px; color:#241a10;
+    background:#ffd166; border:2px solid #5a4630; padding:14px 26px; border-radius:8px; cursor:pointer;
+    box-shadow:0 5px 0 #8a6a2a;
+  }
+  .boton:active{ transform:translateY(4px); box-shadow:0 1px 0 #8a6a2a; }
+  .boton-fantasma{ background:none; color:#c9bfa8; text-decoration:underline; font-size:13px; border:none; cursor:pointer; }
+  .recompensa{ display:flex; align-items:center; gap:10px; background:#20291a; border:2px solid #5a4630; border-radius:8px; padding:10px 16px; font-size:14px; }
+  .recompensa .ico{ font-size:20px; }
+
+  #cartas-heroes, #contenedor-cartas{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; max-width:660px; }
+  .carta{
+    width:150px; background:#20291a; border:2px solid #5a4630; border-radius:10px;
+    padding:12px 10px; cursor:pointer; transition:transform .1s, border-color .1s; text-align:center;
+    box-shadow:0 4px 0 rgba(0,0,0,.3);
+  }
+  .carta:hover, .carta:active{ transform:translateY(-3px); border-color:#ffd166; }
+  .carta .icono{ font-size:26px; margin-bottom:5px; }
+  .carta .titulo-carta{ font-size:13.5px; font-weight:700; margin-bottom:4px; }
+  .carta .desc-carta{ font-size:11px; color:#c9bfa8; line-height:1.35; }
+  .carta .rol{ font-size:10px; letter-spacing:1px; color:#ffd166; margin-bottom:4px; }
+
+  /* joystick + botones táctiles */
+  #joystick-base{
+    position:fixed; width:96px; height:96px; border-radius:50%;
+    background:rgba(255,255,255,.07); border:2px solid rgba(255,255,255,.16);
+    display:none; z-index:15; pointer-events:none;
+  }
+  #joystick-nucleo{
+    position:absolute; width:42px; height:42px; border-radius:50%;
+    background:rgba(255,209,102,.5); top:27px; left:27px;
+  }
+  .btn-tactil{
+    position:fixed; z-index:20; width:64px; height:64px; border-radius:50%;
+    border:2px solid #5a4630; background:rgba(32,41,26,.85); color:#f3efe6;
+    font-size:24px; display:none; align-items:center; justify-content:center;
+  }
+  #btn-dash{ right:18px; bottom:96px; }
+  #btn-poder{ right:96px; bottom:24px; }
+  #btn-sonido{
+    position:fixed; bottom:16px; right:16px; z-index:20;
+    width:40px; height:40px; border-radius:50%; border:2px solid #5a4630;
+    background:#20291a; color:#f3efe6; font-size:16px; cursor:pointer;
+  }
+  @media (prefers-reduced-motion: reduce){ .boton, .carta{ transition:none; } }
+</style>
 </head>
-<body class="bg-slate-50 min-h-screen">
-    <div class="max-w-7xl mx-auto p-6" id="capture">
-        <div class="flex items-center justify-between bg-white p-6 rounded-3xl shadow-sm mb-6 border border-slate-100 no-print">
-            <div>
-              <div class="flex items-center">
-    <img src="logo.jpg" alt="Farmaplus Analytics" class="h-36 w-auto object-contain">
+<body>
+
+<canvas id="juego"></canvas>
+
+<div id="hud">
+  <div class="fila-hud" style="font-size:13px">NIVEL <b id="txt-nivel" style="font-size:17px;color:#ffd166">1</b> · CICLO <b id="txt-ciclo">1</b> · <span id="txt-heroe"></span></div>
+  <div id="barra-xp" class="barra-fondo"><div class="barra-relleno" style="width:0%"></div></div>
+  <div id="barra-hp" class="barra-fondo"><div class="barra-relleno" style="width:100%"></div></div>
+  <div class="fila-hud">PODER <span style="opacity:.7">(clic der. / Espacio)</span></div>
+  <div id="barra-poder" class="barra-fondo" style="max-width:190px"><div class="barra-relleno" style="width:0%"></div></div>
+  <div class="fila-hud">ESQUIVA <span style="opacity:.7">(Shift)</span></div>
+  <div id="barra-dash" class="barra-fondo" style="max-width:120px"><div class="barra-relleno" style="width:100%"></div></div>
 </div>
-            </div>
-            <div class="flex gap-2">
-                <button id="btnPdf" class="hidden bg-slate-800 text-white px-5 py-2 rounded-xl font-semibold hover:bg-slate-900 transition">PDF</button>
-                <button id="btnClear" class="hidden bg-slate-200 text-slate-700 px-5 py-2 rounded-xl font-semibold hover:bg-slate-300 transition">Limpiar filtros</button>
-                <button id="btnDelete" class="hidden bg-red-500 text-white px-5 py-2 rounded-xl font-semibold hover:bg-red-600 transition">Eliminar datos</button>
-                <label class="cursor-pointer bg-blue-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-blue-700 transition">
-                    Cargar Excel <input type="file" id="input" class="hidden" accept=".xlsx, .xls">
-                </label>
-            </div>
-        </div>
+<div id="info-derecha">
+  <div>TIEMPO <b id="txt-tiempo">00:00</b></div>
+  <div>CAÍDOS <b id="txt-kills">0</b></div>
+  <div class="oro">ORO <b id="txt-oro">0</b></div>
 
-        <div id="controls" class="hidden my-6 grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
-            <select id="sucursalFilter" class="p-4 border border-slate-200 rounded-2xl shadow-sm w-full outline-none font-bold text-slate-700"></select>
-            <select id="motivoFilter" class="p-4 border border-slate-200 rounded-2xl shadow-sm w-full outline-none font-bold text-slate-700">
-                <option value="TODOS">Todos los motivos</option>
-            </select>
-            <select id="observacionFilter" class="p-4 border border-slate-200 rounded-2xl shadow-sm w-full outline-none font-bold text-slate-700">
-                <option value="TODAS">Todas las observaciones</option>
-            </select>
-        </div>
+</div>
+<div id="objetivo"></div>
+<div id="jefe-ui">
+  <div class="nombre" id="jefe-nombre"></div>
+  <div class="barra-fondo"><div class="barra-relleno" id="jefe-barra"></div></div>
+</div>
 
-        <div id="dashboard" class="hidden space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs mb-6">Resumen financiero</h3>
-                    <div id="statsContainer" class="flex flex-col gap-4"></div>
-                </div>
-                <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                    <h3 class="font-bold text-slate-400 uppercase tracking-wider text-xs mb-6">Motivos frecuentes</h3>
-                    <div class="flex justify-between text-[10px] text-slate-400 uppercase font-bold mb-2">
-                        <span>Motivo</span>
-                        <span>Movimientos y Unidades</span>
-                    </div>
-                    <div id="motivosContainer" class="space-y-4"></div>
-                </div>
-            </div>
+<section id="pantalla-titulo" class="pantalla">
+  <div class="sub-mundo">MUNDO 1 · EL BOSQUE SUSURRANTE</div>
+  <h1 class="titulo-juego">VIGILIA<span>.</span></h1>
+  <p class="subtitulo" id="meta-info"></p>
+  <p class="subtitulo"><b>Movete</b> con WASD · <b>Apuntá</b> con el mouse (el ataque dispara solo) · <b>Poder</b> con clic derecho o Espacio · <b>Esquivá</b> con Shift.<br>Cazá criaturas hasta atraer al Guardián… y sobreviví a él, una y otra vez.<br><b style="color:#ffd166">Partida infinita:</b> no se puede ganar. La pregunta es hasta qué NIVEL llegás. Tu partida se guarda sola en este dispositivo.</p>
+  <div id="cont-run"></div>
+  <div id="cartas-heroes"></div>
+  <button class="boton" id="btn-mejoras" style="background:#8ec07c;box-shadow:0 5px 0 #4f7f3a">⬆ MEJORAS</button>
+  <button class="boton-fantasma" id="btn-sangre"></button>
+  <p class="subtitulo" id="controles-info"></p>
+</section>
 
-            <div class="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-                <h3 class="font-bold text-xl text-slate-800 mb-6" id="tableTitle">Movimientos</h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="text-slate-400 uppercase text-[10px] tracking-widest border-b border-slate-100">
-                                <th class="py-4 px-2 text-left">Fecha</th>
-                                <th class="py-4 px-2 text-left">Sucursal</th>
-                                <th class="py-4 px-2 text-left">Usuario / ID</th>
-                                <th class="py-4 px-2 text-left">Producto</th>
-                                <th class="py-4 px-2 text-left">Motivo</th>
-                                <th class="py-4 px-2 text-right">Monto</th>
-                            </tr>
-                        </thead>
-                        <tbody id="topGravesContainer"></tbody>
-                    </table>
-                </div>
-                <div class="mt-8 flex justify-center">
-                    <button id="toggleViewBtn" class="text-blue-600 font-bold hover:underline">Ver todos los movimientos</button>
-                </div>
-            </div>
-        </div>
-    </div>
+<section id="pantalla-nivel" class="pantalla oculto">
+  <h2 class="titulo-juego" style="font-size:24px">ELEGÍ UNA MEJORA</h2>
+  <div id="contenedor-cartas"></div>
+</section>
 
-    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 p-4">
-        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-lg w-full">
-            <h3 class="text-lg font-bold text-slate-800 mb-4">Detalle de Observación</h3>
-            <p id="modalContent" class="text-slate-600 mb-6 bg-slate-50 p-4 rounded-xl border"></p>
-            <button onclick="document.getElementById('modal').classList.add('hidden')" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold">Cerrar</button>
-        </div>
-    </div>
+<section id="pantalla-fin" class="pantalla oculto">
+  <h2 class="titulo-juego" style="color:#ff5d5d">EL BOSQUE TE RECLAMÓ</h2>
+  <div style="font-size:15px;color:#c9bfa8">LLEGASTE AL</div>
+  <div style="font-size:56px;font-weight:800;color:#ffd166;text-shadow:0 4px 0 rgba(0,0,0,.4);line-height:1">NIVEL <span id="nivel-final">1</span></div>
+  <p class="subtitulo">Ciclo <b id="ciclo-final" style="color:#f3efe6">1</b> · Tiempo <b id="tiempo-final" style="color:#f3efe6">00:00</b> · Caídos <b id="kills-final" style="color:#f3efe6">0</b></p>
+  <p class="subtitulo" id="record-final" style="color:#8ec07c"></p>
+  <button class="boton" id="btn-copiar" style="background:#8ec07c;box-shadow:0 5px 0 #4f7f3a">📋 COPIAR RESULTADO</button>
+  <button class="boton" id="btn-reintentar">REINTENTAR</button>
+  <button class="boton-fantasma" id="btn-menu">elegir otro héroe</button>
+</section>
 
-    <script>
-        const MOTIVOS_CONFIG = ['Ajuste por bonificación de proveedores', 'Ajuste por fraccionados', 'Ajuste por ingreso de mercadería', 'Ajuste por inventario', 'Ajuste por trazabilidad', 'Ajuste por vale no retirado', 'Ajuste por error de ingreso', 'Ajuste por Fraccionador', 'Ajuste por Robo/Hurto', 'Devolucion a Proveedores', 'Devolucion ACE', 'Devolucion Comercial', 'Faltante', 'Roto/mal estado', 'Uso interno', 'Vencido'];
-        let fullData = [];
-        let viewAll = false;
+<section id="pantalla-victoria" class="pantalla oculto">
+  <div class="sub-mundo">GUARDIÁN DERROTADO</div>
+  <h2 class="titulo-juego" style="color:#ffd166" id="victoria-titulo">CICLO 1 SUPERADO</h2>
+  <div id="lista-recompensas" style="display:flex;flex-direction:column;gap:8px"></div>
+  <p class="subtitulo" id="victoria-aviso"></p>
+  <button class="boton" id="btn-continuar">SEGUIR — SIGUIENTE CICLO</button>
+</section>
 
-        function formatCurrency(val) { return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(val); }
-        function formatDate(val) { const d = new Date(val); return isNaN(d.getTime()) ? val : `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+<section id="pantalla-mejoras" class="pantalla oculto">
+  <div class="sub-mundo">FORJA TU PODER</div>
+  <h2 class="titulo-juego" style="font-size:26px">MEJORAS PERMANENTES</h2>
+  <p class="subtitulo" id="mejoras-recursos"></p>
+  <div id="lista-permanentes" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:680px"></div>
+  <h2 class="titulo-juego" style="font-size:22px;margin-top:8px">ARMAS LEGENDARIAS</h2>
+  <p class="subtitulo" style="font-size:12px">Se pagan con gemas legendarias — rarísimas, caen de campeones y siempre de los Guardianes.</p>
+  <div id="lista-armas" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:680px"></div>
+  <p class="subtitulo" style="font-size:12px;opacity:.8">Pendiente declarado: enemigos con trampas/escudos · más biomas (Pantano, Volcán, Reino Helado, Castillo Maldito, Inframundo) · música por jefe · misiones diarias · cooperativo (requiere servidor).</p>
+  <button class="boton-fantasma" id="btn-mejoras-volver">volver</button>
+</section>
 
-        function showModal(idx) {
-            const item = fullData.find(x => x.id === idx);
-            document.getElementById('modalContent').innerText = item?.observacion || "No hay observaciones para este movimiento.";
-            document.getElementById('modal').classList.remove('hidden');
+<button id="btn-sonido" aria-label="sonido">🔈</button>
+<div class="btn-tactil" id="btn-dash">💨</div>
+<div class="btn-tactil" id="btn-poder">⚡</div>
+<div id="joystick-base"><div id="joystick-nucleo"></div></div>
+
+<script>
+/* ==================================================================
+   VIGILIA — COMBATE MANUAL, MUNDOS Y JEFES
+   Arquitectura por REGISTROS: el contenido (héroes, enemigos, mundos,
+   jefes, patrones de jefe, reliquias, mejoras) vive en objetos de
+   datos. Agregar contenido = agregar una entrada; el núcleo del
+   juego (bucle, física, render) no se toca.
+   Índice:
+   1) CONFIG y REGISTROS de contenido
+   2) Canvas / DOM / Sonido (con impactos y rugidos)
+   3) Sprites procedurales (placeholders declarados) + manifiesto
+      de assets externos (arte desacoplado — ver ASSETS_BOSQUE.md)
+   4) Bosque procedural + ambiente
+   5) Estado, entrada (mouse+teclado / táctil), meta persistente
+   6) Ataques de héroes (apuntados) · Dash
+   7) Oleadas por mundo · Objetivo · JEFE (fases y patrones)
+   8) Juice: sacudida, hit-stop, críticos, chispas
+   9) Bucles actualizar/dibujar · Ciclo de vida
+   ================================================================== */
+
+/* ---------------------------------------------------------------
+   1) CONFIG Y REGISTROS
+--------------------------------------------------------------- */
+const CONFIG={
+  critProb:0.12, critMult:1.6,
+  dash:{duracion:0.18, velocidad:640, invuln:0.28, cooldown:1.35},
+  /* Santuarios de curación: MUY raros a propósito — encontrarlos debe
+     sentirse como suerte, no como parte del plan. */
+  curacion:{ intervaloChequeo:45, probabilidad:0.55, curaPct:0.25, vidaSegundos:42, radioAparicion:[180,380] },
+  comun:{ magnetRadio:80, invulnSegundos:0.6 },
+  /* CURVAS DEL MODO INFINITO — la perilla maestra del juego.
+     El objetivo de diseño: nivel ~300 en ~6 horas de juego hábil;
+     imposible de "ganar", pero siempre se progresa. */
+  curvas:{
+    xpParaNivel: n => Math.round(55*(1+n*0.35)),             // niveles exclusivos: cuestan de verdad
+    valorGema:   c => 8*(1+(c-1)*0.25),
+    escalaHpEnemigo:(min,c)=> (1+min*0.16)*Math.pow(1.5,c-1),
+    escalaDanioEnemigo: c => 1+(c-1)*0.4,
+    metaKills:   c => 50+(c-1)*30,
+    hpJefe:      c => Math.pow(1.75,c-1),
+    oroJefe:     c => 100*c,
+    presionOleadas: c => Math.pow(0.88,c-1),
+    probElite:   c => Math.min(0.24, 0.05+0.03*(c-1)),       // campeones al azar, mucho más frecuentes
+    asaltoCada:  c => Math.max(28, 50*Math.pow(0.90,c-1)),   // oleadas de asalto más seguido
+  },
+};
+
+function fmt(n){
+  n=Math.round(n);
+  if(n>=1e9)return (n/1e9).toFixed(1)+'B';
+  if(n>=1e6)return (n/1e6).toFixed(1)+'M';
+  if(n>=1e4)return (n/1e3).toFixed(1)+'K';
+  return String(n);
+}
+function fmtTiempo(seg){
+  seg=Math.floor(seg);
+  const h=Math.floor(seg/3600), m=Math.floor((seg%3600)/60), s=seg%60;
+  return h>0? `${h}h ${m}m` : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+const REGISTRO={};
+
+REGISTRO.heroes={
+  guerrero:{
+    nombre:'El Guerrero', rol:'ESPADÓN', hpMax:125, velocidad:215, radio:16,
+    basico:{ tipo:'cono', danio:16, cooldown:0.42, rango:92, anguloCono:95, empuje:70,
+      descripcion:'Barrido de espadón hacia el cursor' },
+    especial:{ tipo:'onda', danio:34, cooldown:5.5, velocidadOnda:360, anchoOnda:120, vidaOnda:1.0,
+      descripcion:'Tajo de Media Luna hacia el cursor' }
+  },
+  mago:{
+    nombre:'El Mago', rol:'ARCANO', hpMax:85, velocidad:200, radio:15,
+    basico:{ tipo:'proyectil', proyectil:'arcano', danio:12, cooldown:0.3, velocidadProyectil:430,
+      descripcion:'Orbes arcanos exactamente hacia el cursor' },
+    especial:{ tipo:'aura', danio:16, radio:140, cooldown:3.4, ralentiza:0.45, duracionRalentizar:1.4,
+      descripcion:'Aura de Escarcha: daña y ralentiza alrededor' }
+  },
+  arquero:{
+    nombre:'El Arquero', rol:'ENCAPUCHADO', hpMax:90, velocidad:235, radio:14,
+    basico:{ tipo:'proyectil', proyectil:'flecha', danio:13, cooldown:0.26, velocidadProyectil:560,
+      descripcion:'Flechas luminosas hacia el cursor' },
+    especial:{ tipo:'zona', danioPorTick:8, radio:105, cooldown:7, duracion:3, intervaloTick:0.35,
+      descripcion:'Lluvia de Espinas donde apunta el cursor' }
+  },
+  paladin:{
+    nombre:'El Paladín', rol:'SAGRADO', hpMax:160, velocidad:180, radio:17,
+    basico:{ tipo:'cono', danio:24, cooldown:0.62, rango:80, anguloCono:115, empuje:190,
+      descripcion:'Martillazos que empujan lejos' },
+    especial:{ tipo:'sagrado', danio:26, radio:165, cooldown:7, aturdirSegundos:1.1,
+      descripcion:'Juicio Sagrado: daña y aturde alrededor' }
+  }
+};
+
+/* ia: 'melee' persigue · 'carga' telegrafía y embiste · 'tirador' dispara
+   a distancia · 'explota' estalla al morir. Agregar un comportamiento
+   nuevo = una rama en el bucle de enemigos + una entrada acá. */
+REGISTRO.enemigos={
+  slimeVerde:{ hp:12, velocidad:58, radio:10, danio:7,  xpGemas:1, color:'#63a04f', ia:'melee' },
+  slimeAzul: { hp:18, velocidad:53, radio:11, danio:9,  xpGemas:1, color:'#5aa7d0', ia:'melee' },
+  slimeRojo: { hp:14, velocidad:65, radio:10, danio:9,  xpGemas:1, color:'#d95c3d', ia:'explota' },
+  goblin:    { hp:16, velocidad:96, radio:11, danio:9,  xpGemas:1, color:'#8fae4e', ia:'melee' },
+  chaman:    { hp:20, velocidad:72, radio:11, danio:12, xpGemas:2, color:'#8a5cc9', ia:'tirador' },
+  murcielago:{ hp:9,  velocidad:112,radio:9,  danio:7,  xpGemas:1, color:'#7a6a8a', ia:'melee' },
+  lobo:      { hp:30, velocidad:98, radio:13, danio:18, xpGemas:2, color:'#8a8f98', ia:'carga' },
+  orco:      { hp:38, velocidad:60, radio:15, danio:18, xpGemas:2, color:'#5e7a3a', ia:'melee' },
+  trol:      { hp:220,velocidad:36, radio:26, danio:32, xpGemas:6, color:'#7d8a95', ia:'melee' },
+  acolito:   { hp:24, velocidad:57, radio:12, danio:11, xpGemas:2, color:'#8a5cc9', ia:'invocador' },
+  arana:     { hp:26, velocidad:80, radio:12, danio:9,  xpGemas:2, color:'#3a2a4a', ia:'tejedora' },
+  esqueleto: { hp:22, velocidad:78, radio:12, danio:12, xpGemas:2, color:'#c9c2b0', ia:'revenant' },
+  guardianPiedra:{ hp:260,velocidad:32,radio:22,danio:28, xpGemas:5, color:'#7a7d85', ia:'melee' },
+  zombie:    { hp:44, velocidad:42, radio:13, danio:7,  xpGemas:2, color:'#5a6b4a', ia:'melee', veneno:5 },
+  fantasma:  { hp:20, velocidad:70, radio:11, danio:11, xpGemas:3, color:'#a8c9d8', ia:'fantasmal' },
+};
+
+/* Mundos: objetivo → jefe → recompensas. Agregar Mundo 2 = 1 entrada. */
+REGISTRO.mundos=[{
+  id:'bosque', nombre:'El Bosque Susurrante',
+  objetivo:{ tipo:'cazar', cantidad:60, texto:'Cazá criaturas para atraer al Guardián' },
+  oleadas:{
+    intervaloInicial:1.05, intervaloMinimo:0.20, rampa:0.972, hpExtraPorMinuto:0.5, maxSimultaneos:120,
+    tabla(t,r,c){                     // qué aparece según tiempo Y ciclo — apertura justa, después no perdona
+      if(t>85 && r<0.06+0.02*Math.min(c,8)) return 'trol';
+      if(t>60 && r<0.22) return 'acolito';
+      if(t>50 && r<0.32) return 'orco';
+      if(t>38 && r<0.44) return 'chaman';
+      if(t>30 && r<0.53) return 'lobo';
+      if(t>20 && r<0.62) return 'slimeRojo';
+      if(t>12){
+        if(r<0.74) return 'murcielago';
+        if(r<0.85) return 'slimeAzul';
+        if(r<0.95) return 'goblin';
+        return 'slimeVerde';
+      }
+      return r<0.5?'slimeVerde':'goblin';
+    }
+  },
+  jefe:'ent',
+  recompensas:{ oro:150, reliquia:'semilla_guardian', desbloqueo:'Mundo 2: La Mina' }
+},{
+  id:'mina', nombre:'La Mina Profunda',
+  objetivo:{ tipo:'cazar', cantidad:60, texto:'Excavá y sobreviví a lo que despierta' },
+  oleadas:{
+    intervaloInicial:0.90, intervaloMinimo:0.18, rampa:0.968, hpExtraPorMinuto:0.6, maxSimultaneos:125,
+    tabla(t,r,c){
+      if(t>80 && r<0.05+0.02*Math.min(c,8)) return 'guardianPiedra';
+      if(t>55 && r<0.20) return 'acolito';
+      if(t>42 && r<0.34) return 'esqueleto';
+      if(t>28 && r<0.50) return 'arana';
+      if(t>14){
+        if(r<0.60) return 'esqueleto';
+        if(r<0.82) return 'arana';
+        return 'goblin';
+      }
+      return r<0.5?'goblin':'arana';
+    }
+  },
+  jefe:'golem',
+  recompensas:{ oro:260, reliquia:null, desbloqueo:'Mundo 3: El Cementerio' }
+},{
+  id:'cementerio', nombre:'El Cementerio Olvidado',
+  objetivo:{ tipo:'cazar', cantidad:60, texto:'Profaná las tumbas hasta despertar al Rey' },
+  oleadas:{
+    intervaloInicial:0.80, intervaloMinimo:0.16, rampa:0.965, hpExtraPorMinuto:0.65, maxSimultaneos:130,
+    tabla(t,r,c){
+      if(t>70 && r<0.06+0.02*Math.min(c,8)) return 'fantasma';
+      if(t>50 && r<0.24) return 'zombie';
+      if(t>32 && r<0.42) return 'esqueleto';
+      if(t>16){
+        if(r<0.55) return 'esqueleto';
+        if(r<0.80) return 'zombie';
+        return 'goblin';
+      }
+      return r<0.5?'esqueleto':'goblin';
+    }
+  },
+  jefe:'reyEsqueleto',
+  recompensas:{ oro:400, reliquia:null, desbloqueo:'Mundo 4 (en construcción)' }
+}];
+/* qué bioma corresponde a cada ciclo — la "M" mayúscula del cambio de mapa.
+   Un bioma nuevo = una entrada en REGISTRO.mundos + un tramo acá. */
+function mundoParaCiclo(c){ return REGISTRO.mundos[c>=5?2:(c>=3?1:0)]; }
+function biomaParaCiclo(c){ return c>=5?'cementerio':(c>=3?'mina':'bosque'); }
+function jefeIdParaCiclo(c){
+  if(c===1)return 'ent'; if(c===2)return 'alfa';
+  if(c<=4)return 'golem'; return 'reyEsqueleto';
+}
+
+/* Jefes: stats + fases; cada fase lista patrones con su frecuencia.
+   Los patrones son funciones registradas por id en PATRONES_JEFE. */
+REGISTRO.jefes={
+  ent:{
+    nombre:'EL ENT ANCIANO', titulo:'Guardián del Bosque',
+    frase:'sus raíces marcan el suelo: MOVETE',
+    spriteId:'ent', hp:1600, radio:44, velocidad:26, danioContacto:30, altura:2.6,
+    fases:[
+      { hastaHpPct:0.60, patrones:[ {id:'raices', cada:2.6}, {id:'golpe', cada:2.2} ] },
+      { hastaHpPct:0.30, patrones:[ {id:'raices', cada:2.2}, {id:'golpe', cada:2.2, cerca:true}, {id:'roca', cada:3.0, lejos:true}, {id:'invocar', cada:8.0} ] },
+      { hastaHpPct:0.00, patrones:[ {id:'raicesAnillo', cada:3.4}, {id:'roca', cada:2.2, lejos:true}, {id:'invocar', cada:7.0}, {id:'slam', cada:9.0} ] },
+    ]
+  },
+  alfa:{
+    nombre:'EL LOBO ALFA', titulo:'Terror de la Espesura',
+    frase:'telegrafía sus embestidas: ESQUIVÁ en el momento justo',
+    spriteId:'lobo', hp:1000, radio:34, velocidad:60, danioContacto:24, altura:2.3,
+    fases:[
+      { hastaHpPct:0.55, patrones:[ {id:'cargaTriple', cada:4.6, lejos:true}, {id:'golpe', cada:2.4, cerca:true} ] },
+      { hastaHpPct:0.25, patrones:[ {id:'cargaTriple', cada:4.0, lejos:true}, {id:'aullido', cada:9.0}, {id:'golpe', cada:2.4, cerca:true} ] },
+      { hastaHpPct:0.00, patrones:[ {id:'cargaTriple', cada:3.4, lejos:true}, {id:'aullido', cada:8.0}, {id:'golpe', cada:1.8, cerca:true} ] },
+    ]
+  },
+  golem:{
+    nombre:'EL GÓLEM DE PIEDRA', titulo:'Corazón de la Mina',
+    frase:'el suelo tiembla antes de cada golpe: LEÉ EL TEMBLOR',
+    spriteId:'golem', hp:2200, radio:56, velocidad:22, danioContacto:34, altura:2.4,
+    invocaTipos:['guardianPiedra'],
+    fases:[
+      { hastaHpPct:0.65, patrones:[ {id:'golpe', cada:2.0, cerca:true}, {id:'roca', cada:2.8, lejos:true} ] },
+      { hastaHpPct:0.30, patrones:[ {id:'golpe', cada:1.8, cerca:true}, {id:'roca', cada:2.2, lejos:true}, {id:'temblor', cada:5.5}, {id:'invocar', cada:8.5} ] },
+      { hastaHpPct:0.00, patrones:[ {id:'temblor', cada:3.6}, {id:'roca', cada:1.8, lejos:true}, {id:'slam', cada:6.5}, {id:'invocar', cada:7.0} ] },
+    ]
+  },
+  reyEsqueleto:{
+    nombre:'EL REY ESQUELETO', titulo:'Soberano del Cementerio',
+    frase:'nunca deja de invocar: cazá al rey, no a sus siervos',
+    spriteId:'reyEsqueleto', hp:2800, radio:42, velocidad:50, danioContacto:30, altura:2.5,
+    invocaTipos:['esqueleto'],
+    fases:[
+      { hastaHpPct:0.60, patrones:[ {id:'golpe', cada:1.9, cerca:true}, {id:'invocar', cada:6.5} ] },
+      { hastaHpPct:0.28, patrones:[ {id:'golpe', cada:1.7, cerca:true}, {id:'ondaSuelo', cada:3.6}, {id:'invocar', cada:5.5} ] },
+      { hastaHpPct:0.00, patrones:[ {id:'ondaSuelo', cada:2.6}, {id:'golpe', cada:1.4, cerca:true}, {id:'invocar', cada:4.5} ] },
+    ]
+  }
+};
+
+/* Reliquias: objetos únicos de jefe, persistentes entre partidas. */
+/* Sistema de rarezas — el color y el nombre que se muestran en cada
+   recompensa. Cualquier objeto futuro (reliquia o arma) solo necesita
+   declarar su campo `rareza` para heredar esto automáticamente. */
+const RAREZA={
+  comun:      { label:'⚪ Común',       color:'#c9ced8' },
+  pocoComun:  { label:'🟢 Poco común',  color:'#8ec07c' },
+  rara:       { label:'🔵 Rara',        color:'#5aa7d0' },
+  epica:      { label:'🟣 Épica',       color:'#b39aff' },
+  legendaria: { label:'🟠 Legendaria',  color:'#ffa94d' },
+  mitica:     { label:'🔴 Mítica',      color:'#ff5d8a' },
+};
+
+REGISTRO.reliquias={
+  semilla_guardian:{ nombre:'Semilla del Guardián', icono:'🌱', rareza:'comun',
+    desc:'+15 de vida máxima y +5% de daño, para siempre.',
+    aplicar(j){ j.hpMax+=15; j.hp+=15; j.bonoDanio=(j.bonoDanio||1)*1.05; } },
+  colmillo_alfa:{ nombre:'Colmillo del Alfa', icono:'🦴', rareza:'pocoComun',
+    desc:'+8% de velocidad de movimiento, para siempre.',
+    aplicar(j){ j.velocidad*=1.08; } },
+  corteza_eterna:{ nombre:'Corteza Eterna', icono:'🛡️', rareza:'rara',
+    desc:'+25 de vida máxima, para siempre.',
+    aplicar(j){ j.hpMax+=25; j.hp+=25; } },
+  ojo_cazador:{ nombre:'Ojo del Cazador', icono:'👁️', rareza:'epica',
+    desc:'+4% de probabilidad de crítico, para siempre.',
+    aplicar(j){ j.critBonus=(j.critBonus||0)+0.04; } },
+};
+const POOL_RELIQUIAS=Object.keys(REGISTRO.reliquias);
+
+/* ---------------------------------------------------------------
+   ARMAS LEGENDARIAS — reemplazan el ataque básico del héroe que sea,
+   sin importar su clase. Se invocan gastando gemas legendarias
+   (moneda rarísima, ver más abajo) desde la pantalla de Mejoras.
+   'bastonEco' está completo y jugable; el resto queda registrado
+   con su identidad y su costo — el mismo criterio que ya usamos con
+   el arte: mejor declarado pendiente que hecho a las apuradas.
+--------------------------------------------------------------- */
+REGISTRO.armasLegendarias={
+  bastonEco:{
+    nombre:'Bastón Arcano', icono:'🔮', rareza:'legendaria', costoGemas:12, disponible:true,
+    desc:'Tus proyectiles rebotan entre enemigos hasta 3 veces, buscando el siguiente blanco solos.',
+    basico:{ tipo:'proyectil', proyectil:'arcanoLegendario', danio:15, cooldown:0.34,
+              velocidadProyectil:400, rebotes:3 }
+  },
+  espadaDragon:{ nombre:'Espada del Dragón', icono:'🗡️', rareza:'mitica', costoGemas:40, disponible:false,
+    desc:'Tu ataque básico lanza además una onda de fuego en línea recta.' },
+  martilloTrueno:{ nombre:'Martillo del Trueno', icono:'⚡', rareza:'mitica', costoGemas:40, disponible:false,
+    desc:'Cada pocos segundos invoca un rayo sobre un enemigo al azar cerca tuyo.' },
+  arcoFantasma:{ nombre:'Arco Fantasma', icono:'🏹', rareza:'epica', costoGemas:25, disponible:false,
+    desc:'Tus flechas atraviesan a todos los enemigos en su trayectoria.' },
+  hachaTitan:{ nombre:'Hacha del Titán', icono:'🪓', rareza:'epica', costoGemas:25, disponible:false,
+    desc:'Cada golpe empuja con fuerza a todo lo que toca, sin excepción.' },
+  espadaMaldita:{ nombre:'Espada Maldita', icono:'🩸', rareza:'legendaria', costoGemas:12, disponible:false,
+    desc:'Tus golpes aplican sangrado: el daño se acumula en el tiempo.' },
+};
+
+
+/* MEJORAS PERMANENTES: se compran con recursos y aplican en TODAS las
+   partidas futuras. Costos geométricos = objetivos a largo plazo. */
+REGISTRO.permanentes={
+  danio:    { icono:'🔥', nombre:'Filo eterno',  max:10, desc:n=>`+6% de daño por nivel (actual: +${n*6}%)` },
+  vida:     { icono:'❤️', nombre:'Sangre vieja', max:10, desc:n=>`+15 de vida máxima por nivel (actual: +${n*15})` },
+  fortuna:  { icono:'🍀', nombre:'Fortuna',      max:10, desc:n=>`+8% de recursos por nivel (actual: +${n*8}%)` },
+  velocidad:{ icono:'🥾', nombre:'Zancada',      max:5,  desc:n=>`+3% de velocidad por nivel (actual: +${n*3}%)` },
+  esquiva:  { icono:'💨', nombre:'Reflejos',     max:5,  desc:n=>`Esquiva 5% más rápida por nivel` },
+  iman:     { icono:'🧲', nombre:'Codicia',      max:5,  desc:n=>`+15% de imán por nivel` },
+};
+/* Curva de costos EXACTA pedida: 100·180·320·550·900·1400·2100 para los
+   primeros 7 niveles (ritmo que decelera, cada mejora sigue siendo un logro
+   pero no es un muro imposible); de ahí en más sigue creciendo fuerte para
+   que los niveles de verdad altos sigan siendo un objetivo de largo plazo. */
+const TABLA_COSTO_PERMANENTE=[100,180,320,550,900,1400,2100];
+function costoPermanente(n){
+  if(n<=TABLA_COSTO_PERMANENTE.length) return { oro:TABLA_COSTO_PERMANENTE[n-1] };
+  const base=TABLA_COSTO_PERMANENTE[TABLA_COSTO_PERMANENTE.length-1];
+  return { oro:Math.round(base*Math.pow(1.5,n-TABLA_COSTO_PERMANENTE.length)) };
+}
+function nivelPerm(id){ return (META.permanentes&&META.permanentes[id])||0; }
+function factorRecursos(){ return 1+0.08*nivelPerm('fortuna'); }
+
+/* ESTILOS DE JUEGO — cada mejora pertenece a uno. El sorteo de cartas
+   (ver muestrearMejoras) pesa a favor del estilo que ya venís eligiendo,
+   así que construir una identidad de build es una decisión real, no
+   un accidente. 'imanMejora' es neutral: no empuja ningún estilo. */
+const ESTILO={
+  agil:      { label:'🏃 Ágil',       color:'#5aa7d0' },
+  ofensivo:  { label:'⚔️ Ofensivo',   color:'#ff7a6a' },
+  defensivo: { label:'🛡️ Defensivo', color:'#8ec07c' },
+  magico:    { label:'🔮 Mágico',     color:'#c9a0ff' },
+};
+
+REGISTRO.mejoras=[
+  /* ---------- ÁGIL: esquivar, moverse, castigar el movimiento ---------- */
+  {id:'velMejora',estilo:'agil',icono:'🥾',titulo:'Pies ligeros',desc:'+8% de velocidad de movimiento',
+    aplicar:j=>{ j.velocidad*=1.08; }},
+  {id:'dashMejora',estilo:'agil',icono:'💨',titulo:'Esquiva ágil',desc:'La esquiva recarga 12% más rápido',
+    aplicar:j=>{ j.dashCooldownMax=Math.max(0.5,j.dashCooldownMax*0.88); }},
+  {id:'dashDistMejora',estilo:'agil',icono:'📏',titulo:'Zancada larga',desc:'+20% de distancia recorrida al esquivar',
+    aplicar:j=>{ j.dashDistMult=(j.dashDistMult||1)*1.2; }},
+  {id:'dashDanioMejora',estilo:'agil',icono:'🌀',titulo:'Filo del esquive',desc:'+25% de daño durante 1s después de esquivar',
+    aplicar:j=>{ j.dashDanioBonusPct=(j.dashDanioBonusPct||0)+0.25; }},
+  {id:'autoEsquivaMejora',estilo:'agil',icono:'👻',titulo:'Reflejos felinos',desc:'+8% de probabilidad de esquivar cualquier golpe por completo',
+    aplicar:j=>{ j.autoDodgeChance=(j.autoDodgeChance||0)+0.08; }},
+  {id:'distanciaCritMejora',estilo:'agil',icono:'🎯',titulo:'Cazador en movimiento',desc:'Moverte carga un golpe crítico garantizado (se dispara solo)',
+    aplicar:j=>{
+      if(!j.critMoveThreshold){ j.critMoveThreshold=260; j.critBonusTemp=0.5; }
+      else j.critMoveThreshold=Math.max(120,j.critMoveThreshold-70);   // se repite más seguido
+    }},
+
+  /* ---------- OFENSIVO: pegar más y más seguido ---------- */
+  {id:'danioMejora',estilo:'ofensivo',icono:'🔥',titulo:'Más daño',desc:'+18% de daño en básico y especial',
+    aplicar:j=>{ if(j.basico.danio)j.basico.danio*=1.18;
+                 if(j.especial.danio)j.especial.danio*=1.18;
+                 if(j.especial.danioPorTick)j.especial.danioPorTick*=1.18; }},
+  {id:'ritmoMejora',estilo:'ofensivo',icono:'⚡',titulo:'Ritmo veloz',desc:'Ataque básico 10% más seguido',
+    aplicar:j=>{ j.basico.cooldown=Math.max(0.16,j.basico.cooldown*0.90); }},
+  {id:'critMejora',estilo:'ofensivo',icono:'💥',titulo:'Ojo certero',desc:'+7% de probabilidad de golpe crítico',
+    aplicar:j=>{ j.critBonus=(j.critBonus||0)+0.07; }},
+  {id:'areaMejora',estilo:'ofensivo',icono:'💫',titulo:'Área mayor',desc:'+12% de alcance/área de efecto',
+    aplicar:j=>{ if(j.basico.rango)j.basico.rango*=1.12;
+                 if(j.especial.radio)j.especial.radio*=1.12;
+                 if(j.especial.anchoOnda)j.especial.anchoOnda*=1.12; }},
+  {id:'vidaRoboMejora',estilo:'ofensivo',icono:'🩸',titulo:'Sed de sangre',desc:'Curás el 5% del daño que hacés',
+    aplicar:j=>{ j.lifesteal=(j.lifesteal||0)+0.05; }},
+  {id:'explosivoMejora',estilo:'ofensivo',icono:'💣',titulo:'Golpes explosivos',desc:'15% de probabilidad de dañar en área alrededor de tu objetivo',
+    aplicar:j=>{ j.explosivoChance=(j.explosivoChance||0)+0.15; }},
+
+  /* ---------- DEFENSIVO: sobrevivir para seguir peleando ---------- */
+  {id:'vidaMejora',estilo:'defensivo',icono:'❤️',titulo:'Vitalidad',desc:'+15 de vida máxima y curación',
+    aplicar:j=>{ j.hpMax+=15; j.hp=Math.min(j.hpMax,j.hp+15); }},
+  {id:'armaduraMejora',estilo:'defensivo',icono:'🧱',titulo:'Armadura',desc:'-2 de daño plano en cada golpe recibido',
+    aplicar:j=>{ j.armadura=(j.armadura||0)+2; }},
+  {id:'regenMejora',estilo:'defensivo',icono:'💚',titulo:'Regeneración',desc:'+1 de vida por segundo',
+    aplicar:j=>{ j.regenPorSeg=(j.regenPorSeg||0)+1; }},
+  {id:'escudoMejora',estilo:'defensivo',icono:'🔵',titulo:'Escudo temporal',desc:'Escudo de 20 puntos que se recarga cada 14s',
+    aplicar:j=>{ j.escudoMax=(j.escudoMax||0)+20; j.escudoActual=j.escudoMax; }},
+  {id:'reduccionMejora',estilo:'defensivo',icono:'🛡️',titulo:'Piel de piedra',desc:'-8% de todo el daño que recibís',
+    aplicar:j=>{ j.reduccionDanio=Math.min(0.5,(j.reduccionDanio||0)+0.08); }},
+  {id:'resistenciaMejora',estilo:'defensivo',icono:'♻️',titulo:'Resistencia',desc:'-25% de duración de raíces y veneno en vos',
+    aplicar:j=>{ j.resistenciaEstados=Math.min(0.75,(j.resistenciaEstados||0)+0.25); }},
+
+  /* ---------- MÁGICO: tus golpes llevan un elemento propio ---------- */
+  {id:'escarchaMejora',estilo:'magico',icono:'❄️',titulo:'Toque de Escarcha',desc:'Tus golpes ralentizan al enemigo',
+    aplicar:j=>{ j.onHitSlow=true; }},
+  {id:'venenoMejora',estilo:'magico',icono:'🧪',titulo:'Toque Venenoso',desc:'Tus golpes envenenan, con daño en el tiempo',
+    aplicar:j=>{ j.onHitVeneno=true; }},
+  {id:'chispaCritMejora',estilo:'magico',icono:'✨',titulo:'Chispa Elemental',desc:'Tus críticos también dañan en área alrededor',
+    aplicar:j=>{ j.onCritExplosion=true; }},
+  {id:'poderMejora',estilo:'magico',icono:'🔮',titulo:'Poder frecuente',desc:'El especial carga 10% más rápido',
+    aplicar:j=>{ j.especial.cooldown=Math.max(1.4,j.especial.cooldown*0.90); }},
+
+  /* ---------- NEUTRAL: no empuja ningún estilo en particular ---------- */
+  {id:'imanMejora',estilo:null,icono:'🧲',titulo:'Imán de gemas',desc:'+25% de radio de atracción',
+    aplicar:j=>{ j.magnetRadio*=1.25; }},
+];
+const MAX_PICKS_POR_MEJORA=3;   // ninguna mejora se apila infinito: cada build tiene techo
+const PESO_SINERGIA=0.8;        // cuánto pesa cada elección previa del mismo estilo al sortear
+
+/* Sorteo ponderado sin reemplazo: las mejoras del estilo que ya estás
+   construyendo tienen más chances de aparecer, sin dejar de ser al azar. */
+function muestrearMejoras(disponibles,j,n){
+  const picks=j.estiloPicks||{};
+  const restantes=[...disponibles];
+  const pesos=restantes.map(m=>1+PESO_SINERGIA*(m.estilo?(picks[m.estilo]||0):0));
+  const elegidas=[];
+  for(let k=0;k<n && restantes.length;k++){
+    const total=pesos.reduce((a,b)=>a+b,0);
+    let r=Math.random()*total, idx=restantes.length-1;
+    for(let i=0;i<pesos.length;i++){ r-=pesos[i]; if(r<=0){ idx=i; break; } }
+    elegidas.push(restantes[idx]);
+    restantes.splice(idx,1); pesos.splice(idx,1);
+  }
+  return elegidas;
+}
+
+/* ---------------------------------------------------------------
+   2) CANVAS, DOM, SONIDO
+--------------------------------------------------------------- */
+const lienzo=document.getElementById('juego');
+const ctx=lienzo.getContext('2d');
+function ajustarTamano(){ lienzo.width=innerWidth; lienzo.height=innerHeight; }
+ajustarTamano(); addEventListener('resize',ajustarTamano);
+
+const $=id=>document.getElementById(id);
+const dom={
+  pantallaTitulo:$('pantalla-titulo'), pantallaNivel:$('pantalla-nivel'),
+  pantallaFin:$('pantalla-fin'), pantallaVictoria:$('pantalla-victoria'),
+  cartasHeroes:$('cartas-heroes'), contenedorCartas:$('contenedor-cartas'),
+  listaRecompensas:$('lista-recompensas'),
+  btnReintentar:$('btn-reintentar'), btnMenu:$('btn-menu'), btnContinuar:$('btn-continuar'),
+  btnMejoras:$('btn-mejoras'), btnMejorasVolver:$('btn-mejoras-volver'), btnSangre:$('btn-sangre'),
+  pantallaMejoras:$('pantalla-mejoras'), listaPermanentes:$('lista-permanentes'), mejorasRecursos:$('mejoras-recursos'),
+  listaArmas:$('lista-armas'),
+  btnSonido:$('btn-sonido'), btnDash:$('btn-dash'), btnPoder:$('btn-poder'),
+  txtNivel:$('txt-nivel'), txtHeroe:$('txt-heroe'), txtTiempo:$('txt-tiempo'),
+  txtKills:$('txt-kills'), txtOro:$('txt-oro'), txtCiclo:$('txt-ciclo'),
+  barraHp:document.querySelector('#barra-hp .barra-relleno'),
+  barraXp:document.querySelector('#barra-xp .barra-relleno'),
+  barraPoder:document.querySelector('#barra-poder .barra-relleno'),
+  barraDash:document.querySelector('#barra-dash .barra-relleno'),
+  objetivo:$('objetivo'), jefeUi:$('jefe-ui'), jefeNombre:$('jefe-nombre'), jefeBarra:$('jefe-barra'),
+  tiempoFinal:$('tiempo-final'), killsFinal:$('kills-final'), nivelFinal:$('nivel-final'),
+  cicloFinal:$('ciclo-final'), recordFinal:$('record-final'), btnCopiar:$('btn-copiar'),
+  contRun:$('cont-run'),
+  metaInfo:$('meta-info'),
+  joystickBase:$('joystick-base'), joystickNucleo:$('joystick-nucleo'),
+};
+
+const sonido={
+  ctx:null, activo:false, ruido:null,
+  iniciar(){
+    if(this.ctx)return;
+    const A=window.AudioContext||window.webkitAudioContext; this.ctx=new A();
+    const n=this.ctx.createBuffer(1,this.ctx.sampleRate*0.25,this.ctx.sampleRate);
+    const d=n.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    this.ruido=n;
+  },
+  tono(f,dur,tipo='sine',v=0.05,desde=null){
+    if(!this.activo||!this.ctx)return;
+    const o=this.ctx.createOscillator(), g=this.ctx.createGain();
+    o.type=tipo; o.frequency.value=desde||f;
+    if(desde)o.frequency.exponentialRampToValueAtTime(f,this.ctx.currentTime+dur);
+    g.gain.value=v;
+    o.connect(g); g.connect(this.ctx.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(0.0001,this.ctx.currentTime+dur);
+    o.stop(this.ctx.currentTime+dur);
+  },
+  golpeRuido(dur=0.08,v=0.08){
+    if(!this.activo||!this.ctx)return;
+    const s=this.ctx.createBufferSource(); s.buffer=this.ruido;
+    const g=this.ctx.createGain(); g.gain.value=v;
+    s.connect(g); g.connect(this.ctx.destination);
+    s.start(); g.gain.exponentialRampToValueAtTime(0.0001,this.ctx.currentTime+dur);
+    s.stop(this.ctx.currentTime+dur);
+  },
+  moneda(){this.tono(950,0.05,'square',0.03); setTimeout(()=>this.tono(1250,0.07,'square',0.02),40);},
+  disparo(){this.tono(760,0.05,'square',0.02);},
+  tajo(){this.tono(320,0.08,'sawtooth',0.03); this.golpeRuido(0.05,0.03);},
+  impacto(){this.tono(150,0.09,'square',0.06); this.golpeRuido(0.06,0.05);},
+  critico(){this.tono(520,0.05,'square',0.05); this.tono(180,0.12,'square',0.07); this.golpeRuido(0.09,0.07);},
+  dash(){this.golpeRuido(0.12,0.05); this.tono(600,0.12,'sine',0.02,300);},
+  aura(){this.tono(190,0.2,'sine',0.05);},
+  sagrado(){this.tono(520,0.25,'sine',0.05); setTimeout(()=>this.tono(780,0.3,'sine',0.04),80);},
+  danioJugador(){this.tono(110,0.2,'sawtooth',0.06); this.golpeRuido(0.1,0.06);},
+  subirNivel(){this.tono(660,0.1,'square',0.05); setTimeout(()=>this.tono(880,0.14,'square',0.05),90);},
+  muerte(){this.tono(85,0.6,'sawtooth',0.07);},
+  rugido(){this.tono(60,0.9,'sawtooth',0.09,140); this.golpeRuido(0.4,0.06);},
+  erupcion(){this.tono(90,0.25,'square',0.07); this.golpeRuido(0.15,0.06);},
+};
+dom.btnSonido.addEventListener('click',()=>{
+  sonido.iniciar(); sonido.activo=!sonido.activo;
+  dom.btnSonido.textContent=sonido.activo?'🔊':'🔈';
+});
+
+/* ---------------------------------------------------------------
+   3) SPRITES PROCEDURALES (placeholders declarados)
+--------------------------------------------------------------- */
+const SLIME_FRAMES_V=[
+  [ "....OOOO....","..OOccccOO..",".OccCCCCccO.",".OcCCWCCCcO.","OccCCCCCCccO",
+    "OcKcCCCCKccO","OccCCCCCCccO",".OccccccccO.","..OOOOOOOO.." ],
+  [ "............","...OOOOOO...",".OOccccccOO.","OccCCCWCCccO","OcCCCCCCCCcO",
+    "OcKcCCCCKCcO","OccCCCCCCccO","OccccccccccO",".OOOOOOOOOO." ]
+];
+const PIXEL={
+  guerrero:{
+    paleta:{ O:'#181109', H:'#6b4a2e', S:'#e8b98a', K:'#241a10', L:'#a8703f', l:'#7a4a28',
+             R:'#c9302f', r:'#8a1f22', E:'#dfe5ee', e:'#98a3b8', T:'#5a4630', G:'#c9ced8' },
+    frames:[
+      [ ".....OOOO....E.","....OHHHHO...E.","...OHHHHHHO..E.","...OSSSSSSO..E.","...OSKSSKSO..E.",
+        "....OSSSSO...E.","..OOOLLLLOO.eE.",".ORROLLLLLO.eE.",".ORROLLLLLLOTT.",".ORROLLLLLLOTO.",
+        ".ORROLLLLLO.G..",".ORrOLLLLLO....","..OrOlllllO....","...OOLLLLO.....","...OLLOLLO.....",
+        "...OLLOLLO.....","...OllOllO.....","....O..O......." ],
+      [ ".....OOOO....E.","....OHHHHO...E.","...OHHHHHHO..E.","...OSSSSSSO..E.","...OSKSSKSO..E.",
+        "....OSSSSO...E.","..OOOLLLLOO.eE.",".ORROLLLLLO.eE.",".ORROLLLLLLOTT.",".ORROLLLLLLOTO.",
+        ".ORROLLLLLO.G..",".ORrOLLLLLO....","..OrOlllllO....","...OOLLLLO.....","....OLLLLO.....",
+        "...OLLO.LLO....","...OllO.OllO...","....O....O....." ]
+    ]
+  },
+  mago:{
+    paleta:{ O:'#181109', B:'#3a56c9', b:'#27398a', S:'#e8b98a', C:'#4fd8ff', c:'#bdefff',
+             W:'#e8e4da', T:'#5a4630' },
+    frames:[
+      [ ".....OOOO....c.","....OBBBBO..cCc","...OBBBBBBO..c.","..OBBBBBBBBO.T.","...OSSSSSSO..T.",
+        "...OSCSSCSO..T.","....OWWWWO...T.","...OBBBBBBO..T.","..OBBBBBBBBO.T.","..OBBBBBBBBOOT.",
+        "..OBBBBBBBBO.T.","..OBbbbbbbBO...","..OBBBBBBBBO...","...ObbbbbbO....","...OBBOBBO.....",
+        "...OBBOBBO.....","...ObbObbO.....","....O..O......." ],
+      [ ".....OOOO....c.","....OBBBBO..cCc","...OBBBBBBO..c.","..OBBBBBBBBO.T.","...OSSSSSSO..T.",
+        "...OSCSSCSO..T.","....OWWWWO...T.","...OBBBBBBO..T.","..OBBBBBBBBO.T.","..OBBBBBBBBOOT.",
+        "..OBBBBBBBBO.T.","..OBbbbbbbBO...","..OBBBBBBBBO...","...ObbbbbbO....","....OBBBBO.....",
+        "...OBBO.BBO....","...ObbO.ObbO...","....O....O....." ]
+    ]
+  },
+  arquero:{
+    paleta:{ O:'#181109', V:'#4f7f3a', v:'#35592a', K:'#12180e', Y:'#d9c46a', S:'#e8b98a',
+             T:'#8a6a3a', d:'#5a4630' },
+    frames:[
+      [ ".....OOOO....T.","....OVVVVO..T..","...OVVVVVVO.T..","..OVVVVVVVVOT..","..OVKKKKKKOT...",
+        "..OVKYKKYKOT...","...OVKKKKOT....","...OVVVVVVOT...","..OVVVVVVVVT...","..OvVVVVVVOT...",
+        "..OvVVVVVVOT...","..OvvvvvvvO.T..","...OVVVVVVO.T..","...OvvvvvO..T..","...OVVOVVO.....",
+        "...OVVOVVO.....","...OddOddO.....","....O..O......." ],
+      [ ".....OOOO....T.","....OVVVVO..T..","...OVVVVVVO.T..","..OVVVVVVVVOT..","..OVKKKKKKOT...",
+        "..OVKYKKYKOT...","...OVKKKKOT....","...OVVVVVVOT...","..OVVVVVVVVT...","..OvVVVVVVOT...",
+        "..OvVVVVVVOT...","..OvvvvvvvO.T..","...OVVVVVVO.T..","...OvvvvvO..T..","....OVVVVO.....",
+        "...OVVO.VVO....","...OddO.OddO...","....O....O....." ]
+    ]
+  },
+  paladin:{
+    paleta:{ O:'#181109', G:'#e8c04a', g:'#b58a2a', S:'#e8b98a', K:'#241a10', P:'#c9ced8',
+             p:'#8a93a0', M:'#8a8f98', T:'#5a4630', A:'#fff2c0' },
+    frames:[
+      [ ".....OOOOO...MM","....OGGGGGO..MM","...OGGAGGGGO.T.","...OSSSSSSO..T.","...OSKSSKSO..T.",
+        "....OSSSSO...T.",".OOOGGGGGGOO.T.","OPPOGGGGGGGOOT.","OPpPOGGGGGGO.T.","OPPPOGGGGGGO...",
+        "OPpPOGGGGGGO...","OPPPOGgggggO...","OPpPOGGGGGGO...",".OOOGggggGO....","...OGGOGGO.....",
+        "...OGGOGGO.....","...OggOggO.....","....O..O......." ],
+      [ ".....OOOOO...MM","....OGGGGGO..MM","...OGGAGGGGO.T.","...OSSSSSSO..T.","...OSKSSKSO..T.",
+        "....OSSSSO...T.",".OOOGGGGGGOO.T.","OPPOGGGGGGGOOT.","OPpPOGGGGGGO.T.","OPPPOGGGGGGO...",
+        "OPpPOGGGGGGO...","OPPPOGgggggO...","OPpPOGGGGGGO...",".OOOGggggGO....","....OGGGGO.....",
+        "...OGGO.GGO....","...OggO.OggO...","....O....O....." ]
+    ]
+  },
+  slimeVerde:{ paleta:{ O:'#12220f', C:'#63a04f', c:'#3f6b3a', W:'#c9e8a0', K:'#1a2a14' }, frames:SLIME_FRAMES_V },
+  slimeAzul:{ paleta:{ O:'#0f1a26', C:'#5aa7d0', c:'#3e7fae', W:'#cfeaff', K:'#122030' }, frames:SLIME_FRAMES_V },
+  goblin:{
+    paleta:{ O:'#12180c', g:'#8fae4e', h:'#5e7a3a', K:'#1a200f', R:'#c0502e', E:'#c9ced8', T:'#5a4630' },
+    frames:[
+      [ ".Og.....gO.",".OggO.OggO.","..OgggggO..",".OgKgggKgO.","..OggggO.E.",".OggRRggOE.",
+        ".OggRRggOT.",".OhggggghO.","..OggOggO..","..OhO.OhO.." ],
+      [ ".Og.....gO.",".OggO.OggO.","..OgggggO..",".OgKgggKgO.","..OggggO.E.",".OggRRggOE.",
+        ".OggRRggOT.",".OhggggghO.","...OggOgg..","..OhO..OhO." ]
+    ]
+  },
+  murcielago:{
+    paleta:{ O:'#150f1c', M:'#7a6a8a', m:'#4f4260', K:'#e8b98a', W:'#c9bfd8' },
+    frames:[
+      [ "OMM........MMO","OMMMO....OMMMO",".OMMMOOOOMMMO.","..OMMMMMMMMO..","...OMKMMKMO...",
+        "...OMMWWMMO...","....OMMMMO....",".....OOOO....." ],
+      [ "..............","..OMO....OMO..",".OMMMOOOOMMMO.","OMMMMMMMMMMMMO","OMMOMKMMKMOMMO",
+        "...OMMWWMMO...","....OMMMMO....",".....OOOO....." ]
+    ]
+  },
+  lobo:{
+    paleta:{ O:'#14161a', L:'#8a8f98', l:'#5f646e', W:'#c9ced8', K:'#1a1c20', R:'#c0502e' },
+    frames:[
+      [ "..O...............",".OLO.....OOOOO....",".OLLOOOOOLLLLLO.O.","..OLLLLLLLLLLLLOLO","..OLLLLLLLLKLLLLO.",
+        "..OlLLLLLLLLLROO..","..OlLLLLLLLLWWO...","...OLLLLLLLLOOO...","...OLLOOOOLLO.....","...OLO....OLO.....",
+        "...OlO....OlO.....","....O......O......" ],
+      [ "..O...............",".OLO.....OOOOO....",".OLLOOOOOLLLLLO.O.","..OLLLLLLLLLLLLOLO","..OLLLLLLLLKLLLLO.",
+        "..OlLLLLLLLLLROO..","..OlLLLLLLLLWWO...","...OLLLLLLLLOOO...","....OLLOOOLLO.....","....OLO..OLO......",
+        "...OlO....OlO.....","...O........O....." ]
+    ]
+  },
+  orco:{
+    paleta:{ O:'#101408', o:'#5e7a3a', d:'#42592a', A:'#8a93a0', a:'#5f646e', W:'#e8e4da', K:'#141a0a' },
+    frames:[
+      [ "...OooooooO...","..OooooooooO..","..OoKooooKoO..","..OooooooooO..","..OoWo..oWoO..",
+        ".OAAAooooAAAO.",".OAaAooooAaAO.","..OooooooooO..","..OooooooooO..","..OddddddddO..",
+        "..OooO..OooO..","..OddO..OddO.." ],
+      [ "...OooooooO...","..OooooooooO..","..OoKooooKoO..","..OooooooooO..","..OoWo..oWoO..",
+        ".OAAAooooAAAO.",".OAaAooooAaAO.","..OooooooooO..","..OooooooooO..","..OddddddddO..",
+        "...OooOOooO...","..OddO..OddO.." ]
+    ]
+  },
+  trol:{
+    paleta:{ O:'#12161a', b:'#7d8a95', d:'#5a6570', p:'#a8b2ba', K:'#161a20', W:'#e8e4da' },
+    frames:[
+      [ ".....ObbbbbbO.....","....ObbbbbbbbO....","....ObKbbbbKbO....","....ObbbbbbbbO....","....ObWb..bWbO....",
+        "..ObbbbbbbbbbbbO..",".ObbbbppppppbbbbO.",".ObbbppppppppbbbO.",".ObbbppppppppbbbO.",".ObbbppppppppbbbO.",
+        "..ObbppppppppbbO..","..ObbbbbbbbbbbbO..","...ObbbbO.ObbbbO..","...ObbbbO.ObbbbO..","...OddddO.OddddO.." ],
+      [ ".....ObbbbbbO.....","....ObbbbbbbbO....","....ObKbbbbKbO....","....ObbbbbbbbO....","....ObWb..bWbO....",
+        "..ObbbbbbbbbbbbO..",".ObbbbppppppbbbbO.",".ObbbppppppppbbbO.",".ObbbppppppppbbbO.",".ObbbppppppppbbbO.",
+        "..ObbppppppppbbO..","..ObbbbbbbbbbbbO..","....ObbbbObbbbO...","...ObbbbO.ObbbbO..","...OddddO..OddddO." ]
+    ]
+  },
+  /* EL ENT — placeholder declarado (arte final: assets/jefes/, 160×160) */
+  ent:{
+    paleta:{ O:'#12160c', T:'#4a3320', t:'#6b4a2e', V:'#2e5c33', v:'#3f7a42', L:'#63a04f',
+             A:'#ffb020', M:'#3f7a42' },
+    frames:[
+      [ "......OVVVVVVVO......","....OVVvvvvvvVVO.....","...OVvvLLvvLLvvVO....","...OVvvvvvvvvvvVO....",
+        "....OVVvvvvvvVVO.....","......OTTTTTO........","....OTTtttttTTO......","....OTtAttAtTO.......",
+        "....OTtttttttTO......","...OTTtttttttTTO.....","..OTtTtttttttTtTO....","..OTtTtttttttTtTO....",
+        "..OttOTtttttTOttO....","..OO..OTtttTO..OO....","......OTtttTO........","......OTtttTO........",
+        ".....OTTOOTTO........",".....OTTO.OTTO.......","....OTTO...OTTO......","....OOO.....OOO......" ],
+      [ "......OVVVVVVVO......","....OVVvvvvvvVVO.....","...OVvvLLvvLLvvVO....","...OVvvvvvvvvvvVO....",
+        "....OVVvvvvvvVVO.....","......OTTTTTO........","....OTTtttttTTO......","....OTtAttAtTO.......",
+        "....OTtttttttTO......","...OTTtttttttTTO.....","..OTtTtttttttTtTO....","..OTtTtttttttTtTO....",
+        "..OttOTtttttTOttO....","..OO..OTtttTO..OO....","......OTtttTO........","......OTtttTO........",
+        ".....OTTOOTTO........","....OTTO...OTTO......",".....OTTO.OTTO.......","....OOO.....OOO......" ]
+    ]
+  }
+};
+
+function hornear(def){
+  return def.frames.map(filas=>{
+    const alto=filas.length, ancho=Math.max(...filas.map(f=>f.length));
+    const c=document.createElement('canvas'); c.width=ancho; c.height=alto;
+    const cc=c.getContext('2d');
+    filas.forEach((fila,y)=>{[...fila].forEach((ch,x)=>{
+      const col=def.paleta[ch];
+      if(col){cc.fillStyle=col; cc.fillRect(x,y,1,1);}
+    });});
+    return c;
+  });
+}
+/* variantes por paleta: mismo mapa de píxeles, otro color = otro enemigo */
+PIXEL.chaman={ paleta:{ O:'#160c1c', g:'#8a5cc9', h:'#5c3a8a', K:'#1a0f24', R:'#ffd166', E:'#c9ced8', T:'#5a4630' }, frames:PIXEL.goblin.frames };
+PIXEL.slimeRojo={ paleta:{ O:'#260f0c', C:'#d95c3d', c:'#a83a24', W:'#ffd8a0', K:'#2a140f' }, frames:SLIME_FRAMES_V };
+PIXEL.acolito={ paleta:{ O:'#120a1c', B:'#4a2a7a', b:'#321a5a', S:'#d8c0a8', C:'#c9a0ff', c:'#e8d8ff', W:'#a89ab8', T:'#3a2a4a' }, frames:PIXEL.mago.frames };
+
+/* Araña — cuerpo propio, 8 patas, ojos múltiples: silueta reconocible */
+PIXEL.arana={
+  paleta:{ O:'#0c0810', A:'#3a2a4a', a:'#241a30', R:'#ff5d5d', L:'#5a4a70' },
+  frames:[
+    [ ".L....O....L.",".LL...O...LL.","..LOOOOOOOL...","..OAAAAAAAO...",
+      ".OAAaRRaAAOL..","..OAAAAAAAO...","..OOAAAAOO....","...L.OO.L.....",
+      "..L..OO..L....",".L...OO...L..." ],
+    [ "..L...O...L..",".LL...O...LL.","..LOOOOOOOL...","..OAAAAAAAO...",
+      ".OAAaRRaAAOL..","..OAAAAAAAO...","..OOAAAAOO....","..L..OO..L....",
+      ".L...OO...L..","L....OO....L." ]
+  ]
+};
+/* Esqueleto — hueso blanco, cuencas oscuras: nada que ver con el goblin */
+PIXEL.esqueleto={
+  paleta:{ O:'#141414', H:'#e8e4da', h:'#c9c2b0', K:'#1a1410', R:'#ff5d5d', T:'#5a4630' },
+  frames:[
+    [ "....OHHHO....","...OHKHKHO...","....OHHHO....",".....OHO.....",
+      "..OHHHHHHHO..",".OHhHHHHHhOT.","OHhHHRHHHhO.T","OHhHHHHHHhO..",
+      "..OHhHhHO....","..OH...HO....","..OH...HO....","..hh...hh...." ],
+    [ "....OHHHO....","...OHKHKHO...","....OHHHO....",".....OHO.....",
+      "..OHHHHHHHO..",".OHhHHHHHhOT.","OHhHHRHHHhO.T","OHhHHHHHHhO..",
+      "...OHhHhO....","...OH..HO....","..OH....HO...","..hh....hh..." ]
+  ]
+};
+/* Guardián de Piedra — bloque grueso con grietas que brillan */
+PIXEL.guardianPiedra={
+  paleta:{ O:'#101114', p:'#7a7d85', P:'#5a5d64', G:'#3fd8c9', K:'#161a1c' },
+  frames:[
+    [ ".OppppppO..","OpPGppGPpO.","OpPPppPPpO.","OppppppppO",
+      "OpKppppKpO","OppppppppO","OppGppGppO","OPPPPPPPPO",
+      "OppppppppO","OppppppppO","OPP....PPO","OPP....PPO" ],
+    [ ".OppppppO..","OpPGppGPpO.","OpPPppPPpO.","OppppppppO",
+      "OpKppppKpO","OppppppppO","OppGppGppO","OPPPPPPPPO",
+      "OppppppppO","OppppppppO",".OPP..PPO.","..OPPPPO.." ]
+  ]
+};
+/* EL GÓLEM DE PIEDRA — jefe de La Mina, placeholder declarado (160×160 final) */
+PIXEL.golem={
+  paleta:{ O:'#0c0d10', p:'#6a6d75', P:'#4a4d54', G:'#5fe8d9', K:'#141618' },
+  frames:[
+    [ "......OppppppppO......","....OppPPPPPPPPppO....","...OpPGppppppGPpO.....",
+      "...OpPPppppppPPpO.....","....OppKppppKppO......","....OppppppppppO......",
+      "..OOppppppppppppOO....","..OpPPPPGGGGPPPPpO....","..OpPPPPPPPPPPPPpO....",
+      "..OpPPPPPPPPPPPPpO....","...OppPPPPPPPPppO.....","...OppppppppppppO.....",
+      "....OppO....OppO......","....OppO....OppO......","...OPPPO...OPPPO......" ],
+    [ "......OppppppppO......","....OppPPPPPPPPppO....","...OpPGppppppGPpO.....",
+      "...OpPPppppppPPpO.....","....OppKppppKppO......","....OppppppppppO......",
+      "..OOppppppppppppOO....","..OpPPPPGGGGPPPPpO....","..OpPPPPPPPPPPPPpO....",
+      "..OpPPPPPPPPPPPPpO....","...OppPPPPPPPPppO.....","....OppppppppppO......",
+      "...OppO......OppO.....","....OPPO....OPPO......","....OPPO....OPPO......" ]
+  ]
+};
+/* Zombie — piel verdosa podrida, andar arrastrado, más grande que el goblin */
+PIXEL.zombie={
+  paleta:{ O:'#0e140c', Z:'#5a6b4a', z:'#3e4a34', K:'#1a2014', R:'#7a2a2a', T:'#3a2a20' },
+  frames:[
+    [ "....OZZZZO....","...OZKZZKZO...","....OZZZZO....",".....OZZO.....",
+      "..OZZZZZZZO..",".OZzZZRZZzOT.","OZzZZZZZZzO.T","OZzZZZZZZzO..",
+      "..OZzZzZO....","..OZ....ZO....","..OZ....ZO....","..zz....zz...." ],
+    [ "....OZZZZO....","...OZKZZKZO...","....OZZZZO....",".....OZZO.....",
+      "..OZZZZZZZO..",".OZzZZRZZzOT.","OZzZZZZZZzO.T","OZzZZZZZZzO..",
+      "...OZzZzO....","...OZ..ZO....","..OZ....ZO...","..zz....zz...." ]
+  ]
+};
+/* Fantasma — translúcido por diseño, sin piernas: flota */
+PIXEL.fantasma={
+  paleta:{ O:'#1a242c', F:'#a8c9d8', f:'#7aa0b0', K:'#12181c' },
+  frames:[
+    [ "...OFFFFO...","..OFFFFFFO..",".OFFFFFFFFO.","OFFKFFFFKFO",
+      "OFFFFFFFFFO","OFFFFFFFFFO","OFfFFFFFfFO",".OfF.FF.fO.",
+      "..Of.ff.fO..","...O....O..." ],
+    [ "...OFFFFO...","..OFFFFFFO..",".OFFFFFFFFO.","OFFKFFFFKFO",
+      "OFFFFFFFFFO","OFFFFFFFFFO","OFfFFFFFfFO","..OfFFFfO..",
+      "...OfffO....","....O..O...." ]
+  ]
+};
+/* EL REY ESQUELETO — corona dorada y capa: mismo material óseo, otra silueta */
+PIXEL.reyEsqueleto={
+  paleta:{ O:'#141414', H:'#e8e4da', h:'#c9c2b0', K:'#1a1410', R:'#ff5d5d',
+           G:'#e8c04a', g:'#b58a2a', M:'#5a1f8a' },
+  frames:[
+    [ "....GGGGGGG....","...GgGgGgGgG...","....OHHHHHO....","...OHKHHKHO....",
+      "....OHHHHO.....","..MOHHHHHHHOM..",".MMOHhHHHhOMM..","MMMOHhHHRHhOMM.",
+      "MMMOHhHHHhOMM..","..MOHhHhHOM....","...OH....HO....","...OH....HO....",
+      "..hh....hh.....","..hh....hh....." ],
+    [ "....GGGGGGG....","...GgGgGgGgG...","....OHHHHHO....","...OHKHHKHO....",
+      "....OHHHHO.....","..MOHHHHHHHOM..",".MMOHhHHHhOMM..","MMMOHhHHRHhOMM.",
+      "MMMOHhHHHhOMM..","...OHhHhOM.....","...OH...HO.....","..OH.....HO....",
+      "..hh.....hh....","..hh.....hh...." ]
+  ]
+};
+
+const SPRITES={};
+for(const [id,def] of Object.entries(PIXEL)) SPRITES[id]=hornear(def);
+
+/* ---- Manifiesto de arte externo (ver ASSETS_BOSQUE.md) ---- */
+const MANIFEST={
+  sprites:{
+    guerrero:{src:'assets/heroes/guerrero_caminar.png',fw:48,fh:48},
+    mago:{src:'assets/heroes/mago_caminar.png',fw:48,fh:48},
+    arquero:{src:'assets/heroes/arquero_caminar.png',fw:48,fh:48},
+    paladin:{src:'assets/heroes/paladin_caminar.png',fw:48,fh:48},
+    slimeVerde:{src:'assets/enemigos/slime_verde_caminar.png',fw:32,fh:32},
+    slimeAzul:{src:'assets/enemigos/slime_azul_caminar.png',fw:32,fh:32},
+    goblin:{src:'assets/enemigos/goblin_caminar.png',fw:32,fh:32},
+    chaman:{src:'assets/enemigos/chaman_caminar.png',fw:32,fh:32},
+    slimeRojo:{src:'assets/enemigos/slime_rojo_caminar.png',fw:32,fh:32},
+    acolito:{src:'assets/enemigos/acolito_caminar.png',fw:32,fh:32},
+    arana:{src:'assets/enemigos/arana_caminar.png',fw:32,fh:32},
+    esqueleto:{src:'assets/enemigos/esqueleto_caminar.png',fw:32,fh:32},
+    guardianPiedra:{src:'assets/enemigos/guardian_piedra_caminar.png',fw:32,fh:32},
+    golem:{src:'assets/jefes/golem_caminar.png',fw:160,fh:160},
+    zombie:{src:'assets/enemigos/zombie_caminar.png',fw:32,fh:32},
+    fantasma:{src:'assets/enemigos/fantasma_flotar.png',fw:32,fh:32},
+    reyEsqueleto:{src:'assets/jefes/rey_esqueleto_caminar.png',fw:160,fh:160},
+    murcielago:{src:'assets/enemigos/murcielago_volar.png',fw:32,fh:32},
+    lobo:{src:'assets/enemigos/lobo_correr.png',fw:48,fh:32},
+    orco:{src:'assets/enemigos/orco_caminar.png',fw:32,fh:32},
+    trol:{src:'assets/enemigos/trol_caminar.png',fw:64,fh:64},
+    ent:{src:'assets/jefes/ent_caminar.png',fw:160,fh:160},
+  },
+  props:{
+    arbol:{src:'assets/entorno/arbol.png',ancho:110,alto:150},
+    pino:{src:'assets/entorno/pino.png',ancho:70,alto:120},
+    arbusto:{src:'assets/entorno/arbusto.png',ancho:48,alto:36},
+    piedra:{src:'assets/entorno/piedra.png',ancho:36,alto:26},
+    tronco:{src:'assets/entorno/tronco.png',ancho:64,alto:28},
+    hongo:{src:'assets/entorno/hongo.png',ancho:20,alto:22},
+    ruina:{src:'assets/entorno/ruina.png',ancho:44,alto:70},
+    altar:{src:'assets/entorno/altar.png',ancho:48,alto:60},
+  }
+};
+const IMGS={props:{}};
+(function cargarManifiesto(){
+  for(const [id,cfg] of Object.entries(MANIFEST.sprites)){
+    const img=new Image();
+    img.onload=()=>{
+      const n=Math.max(1,Math.floor(img.width/cfg.fw));
+      const frames=[];
+      for(let i=0;i<n;i++){
+        const c=document.createElement('canvas'); c.width=cfg.fw; c.height=cfg.fh;
+        c.getContext('2d').drawImage(img,i*cfg.fw,0,cfg.fw,cfg.fh,0,0,cfg.fw,cfg.fh);
+        frames.push(c);
+      }
+      SPRITES[id]=frames;
+      console.log(`[assets] sprite externo activo: ${id} (${n} frames)`);
+    };
+    img.onerror=()=>{};
+    img.src=cfg.src;
+  }
+  for(const [id,cfg] of Object.entries(MANIFEST.props)){
+    const img=new Image();
+    img.onload=()=>{ IMGS.props[id]=img; console.log(`[assets] prop externo activo: ${id}`); };
+    img.onerror=()=>{};
+    img.src=cfg.src;
+  }
+})();
+function propExterno(id,x,y){
+  const img=IMGS.props[id];
+  if(!img)return false;
+  const cfg=MANIFEST.props[id];
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(img,x-cfg.ancho/2,y-cfg.alto,cfg.ancho,cfg.alto);
+  return true;
+}
+
+function dibujarSprite(id,frame,x,y,altura,flip,punch=0){
+  const img=SPRITES[id][frame%SPRITES[id].length];
+  const esc=altura/img.height, ancho=img.width*esc;
+  ctx.save(); ctx.translate(x,y);
+  ctx.scale((flip?-1:1)*(1+punch),1-punch);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(img,-ancho/2,-altura,ancho,altura);
+  ctx.restore();
+}
+function dibujarSombra(x,y,ancho,alpha=0.28){
+  ctx.fillStyle=`rgba(10,16,8,${alpha})`;
+  ctx.beginPath(); ctx.ellipse(x,y,ancho,ancho*0.35,0,0,Math.PI*2); ctx.fill();
+}
+
+/* ---------------------------------------------------------------
+   4) BOSQUE PROCEDURAL + AMBIENTE
+--------------------------------------------------------------- */
+const CELDA=120;
+function hash(gx,gy,sal=0){
+  const s=Math.sin(gx*127.1+gy*311.7+sal*74.7)*43758.5453;
+  return s-Math.floor(s);
+}
+function doodadBosque(gx,gy){
+  const r=hash(gx,gy);
+  const ox=(hash(gx,gy,1)-0.5)*CELDA*0.6, oy=(hash(gx,gy,2)-0.5)*CELDA*0.6;
+  const x=gx*CELDA+CELDA/2+ox, y=gy*CELDA+CELDA/2+oy;
+  if(r<0.30)return null;
+  if(r<0.46)return{t:'pasto',x,y};
+  if(r<0.56)return{t:'flor',x,y,v:hash(gx,gy,3)};
+  if(r<0.64)return{t:'piedra',x,y,v:hash(gx,gy,3)};
+  if(r<0.72)return{t:'arbusto',x,y};
+  if(r<0.77)return{t:'hongo',x,y};
+  if(r<0.86)return{t:'arbol',x,y,v:hash(gx,gy,3)};
+  if(r<0.90)return{t:'pino',x,y};
+  if(r<0.93)return{t:'tronco',x,y,v:hash(gx,gy,3)};
+  if(r<0.955)return{t:'laguna',x,y};
+  if(r<0.985)return{t:'ruina',x,y,v:hash(gx,gy,3)};
+  return{t:'altar',x,y};
+}
+/* La Mina: mismo generador determinista, otro reparto de props —
+   piedras enormes, cristales que brillan, grietas de lava, estalactitas. */
+function doodadMina(gx,gy){
+  const r=hash(gx,gy,50);           // salt distinto: mapa totalmente distinto al del bosque
+  const ox=(hash(gx,gy,51)-0.5)*CELDA*0.6, oy=(hash(gx,gy,52)-0.5)*CELDA*0.6;
+  const x=gx*CELDA+CELDA/2+ox, y=gy*CELDA+CELDA/2+oy;
+  if(r<0.34)return null;
+  if(r<0.50)return{t:'grava',x,y};
+  if(r<0.60)return{t:'cristal',x,y,v:hash(gx,gy,53)};
+  if(r<0.78)return{t:'rocaGrande',x,y,v:hash(gx,gy,53)};
+  if(r<0.86)return{t:'estalactita',x,y,v:hash(gx,gy,53)};
+  if(r<0.94)return{t:'lava',x,y};
+  return{t:'cristalGigante',x,y,v:hash(gx,gy,53)};
+}
+/* El Cementerio: lápidas, árboles muertos, cercos rotos, fuegos fatuos. */
+function doodadCementerio(gx,gy){
+  const r=hash(gx,gy,90);
+  const ox=(hash(gx,gy,91)-0.5)*CELDA*0.6, oy=(hash(gx,gy,92)-0.5)*CELDA*0.6;
+  const x=gx*CELDA+CELDA/2+ox, y=gy*CELDA+CELDA/2+oy;
+  if(r<0.32)return null;
+  if(r<0.48)return{t:'pastoSeco',x,y};
+  if(r<0.68)return{t:'lapida',x,y,v:hash(gx,gy,93)};
+  if(r<0.80)return{t:'arbolMuerto',x,y,v:hash(gx,gy,93)};
+  if(r<0.90)return{t:'cerco',x,y,v:hash(gx,gy,93)};
+  if(r<0.96)return{t:'cripta',x,y,v:hash(gx,gy,93)};
+  return{t:'fuegoFatuo',x,y};
+}
+function doodadDeCelda(gx,gy,bioma){
+  if(bioma==='mina')return doodadMina(gx,gy);
+  if(bioma==='cementerio')return doodadCementerio(gx,gy);
+  return doodadBosque(gx,gy);
+}
+const DOODAD={
+  pasto(x,y){
+    ctx.strokeStyle='#63a04f'; ctx.lineWidth=2;
+    for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(x+i*5,y); ctx.lineTo(x+i*5+i,y-8); ctx.stroke(); }
+  },
+  flor(x,y,v){
+    const colores=['#e85d75','#ffd166','#b57edc','#f3efe6'];
+    ctx.strokeStyle='#3f6b3a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y-7); ctx.stroke();
+    ctx.fillStyle=colores[Math.floor(v*colores.length)];
+    ctx.fillRect(x-3,y-11,6,6);
+    ctx.fillStyle='#ffe08a'; ctx.fillRect(x-1,y-9,2,2);
+  },
+  piedra(x,y,v){
+    if(propExterno('piedra',x,y))return;
+    const r=6+v*7;
+    ctx.fillStyle='#5f646e'; ctx.beginPath(); ctx.ellipse(x,y-r*0.4,r,r*0.7,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#8a8f98'; ctx.beginPath(); ctx.ellipse(x-r*0.25,y-r*0.55,r*0.55,r*0.4,0,0,Math.PI*2); ctx.fill();
+  },
+  arbusto(x,y){
+    if(propExterno('arbusto',x,y))return;
+    dibujarSombra(x,y,14,0.2);
+    ctx.fillStyle='#2e5c33';
+    ctx.beginPath(); ctx.arc(x-7,y-8,10,0,Math.PI*2); ctx.arc(x+7,y-8,10,0,Math.PI*2); ctx.arc(x,y-13,10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3f7a42';
+    ctx.beginPath(); ctx.arc(x-4,y-13,6,0,Math.PI*2); ctx.arc(x+6,y-11,5,0,Math.PI*2); ctx.fill();
+  },
+  hongo(x,y){
+    if(propExterno('hongo',x,y))return;
+    ctx.fillStyle='#e8dcc0'; ctx.fillRect(x-2,y-7,4,7);
+    ctx.fillStyle='#d94f3d'; ctx.beginPath(); ctx.ellipse(x,y-8,7,4.5,0,Math.PI,0); ctx.fill();
+    ctx.fillStyle='#f3efe6'; ctx.fillRect(x-4,y-10,2,2); ctx.fillRect(x+2,y-9,2,2);
+  },
+  tronco(x,y,v){
+    if(propExterno('tronco',x,y))return;
+    dibujarSombra(x,y+2,22,0.2);
+    ctx.fillStyle='#4a3320'; ctx.fillRect(x-24,y-10,48,12);
+    ctx.fillStyle='#6b4a2e'; ctx.fillRect(x-24,y-10,48,8);
+    ctx.fillStyle='#8a6a44'; ctx.beginPath(); ctx.ellipse(x+24,y-4,4,6,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#4a3320'; ctx.beginPath(); ctx.ellipse(x+24,y-4,2,3,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3f7a42'; ctx.fillRect(x-18,y-12,8,3); ctx.fillRect(x-2+v*8,y-12,6,3);
+  },
+  arbol(x,y,v){
+    if(propExterno('arbol',x,y))return;
+    dibujarSombra(x,y,30,0.25);
+    ctx.fillStyle='#4a3320'; ctx.fillRect(x-7,y-52,14,52);
+    ctx.beginPath();
+    ctx.moveTo(x-7,y); ctx.lineTo(x-16,y+3); ctx.lineTo(x-7,y-8);
+    ctx.moveTo(x+7,y); ctx.lineTo(x+16,y+3); ctx.lineTo(x+7,y-8);
+    ctx.fill();
+    ctx.fillStyle='#6b4a2e'; ctx.fillRect(x-7,y-52,5,52);
+    const R=34+v*10;
+    ctx.fillStyle='#2e5c33';
+    ctx.beginPath();
+    ctx.arc(x-R*0.5,y-58,R*0.72,0,Math.PI*2); ctx.arc(x+R*0.5,y-58,R*0.72,0,Math.PI*2);
+    ctx.arc(x,y-72,R*0.8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3f7a42';
+    ctx.beginPath(); ctx.arc(x-R*0.35,y-72,R*0.5,0,Math.PI*2); ctx.arc(x+R*0.4,y-64,R*0.42,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#63a04f'; ctx.beginPath(); ctx.arc(x-R*0.45,y-80,R*0.3,0,Math.PI*2); ctx.fill();
+  },
+  pino(x,y){
+    if(propExterno('pino',x,y))return;
+    dibujarSombra(x,y,18,0.22);
+    ctx.fillStyle='#4a3320'; ctx.fillRect(x-4,y-14,8,14);
+    ctx.fillStyle='#2e5c33';
+    for(let i=0;i<3;i++){
+      const w=30-i*8, yy=y-14-i*16;
+      ctx.beginPath(); ctx.moveTo(x,yy-22); ctx.lineTo(x-w/2,yy); ctx.lineTo(x+w/2,yy); ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle='#3f7a42';
+    ctx.beginPath(); ctx.moveTo(x,y-58); ctx.lineTo(x-6,y-40); ctx.lineTo(x+2,y-40); ctx.closePath(); ctx.fill();
+  },
+  laguna(x,y,t){
+    ctx.fillStyle='#8a6a44'; ctx.beginPath(); ctx.ellipse(x,y,46,28,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3e7fae'; ctx.beginPath(); ctx.ellipse(x,y,40,23,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#5aa7d0'; ctx.beginPath(); ctx.ellipse(x-6,y-3,26,14,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.5)';
+    for(let i=0;i<3;i++){
+      const fx=x-20+((t*14+i*37)%40), fy=y-8+i*7;
+      ctx.fillRect(fx,fy,6,2);
+    }
+  },
+  ruina(x,y,v){
+    if(propExterno('ruina',x,y))return;
+    dibujarSombra(x,y,16,0.22);
+    const alto=26+v*20;
+    ctx.fillStyle='#5f646e'; ctx.fillRect(x-9,y-alto,18,alto);
+    ctx.fillStyle='#8a8f98'; ctx.fillRect(x-9,y-alto,7,alto);
+    ctx.fillStyle='#5f646e'; ctx.fillRect(x-12,y-alto-6,24,7);
+    ctx.fillStyle='#8a8f98'; ctx.fillRect(x-12,y-alto-6,24,3);
+    ctx.fillStyle='#3f7a42'; ctx.fillRect(x-9,y-8,6,4); ctx.fillRect(x+2,y-14,5,3);
+    ctx.strokeStyle='#42474f'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x+3,y-alto+4); ctx.lineTo(x-2,y-alto*0.5); ctx.stroke();
+  },
+  altar(x,y,t){
+    if(propExterno('altar',x,y))return;
+    dibujarSombra(x,y,20,0.25);
+    ctx.fillStyle='#5f646e'; ctx.fillRect(x-16,y-10,32,10);
+    ctx.fillStyle='#8a8f98'; ctx.fillRect(x-16,y-10,32,4);
+    ctx.fillStyle='#5f646e'; ctx.fillRect(x-10,y-18,20,8);
+    ctx.fillStyle='#8a8f98'; ctx.fillRect(x-10,y-18,20,3);
+    const flote=Math.sin(t*2)*3;
+    ctx.fillStyle=`rgba(79,216,255,${0.5+Math.sin(t*3)*0.2})`;
+    ctx.beginPath(); ctx.arc(x,y-30+flote,9,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#bdefff'; ctx.fillRect(x-1,y-34+flote,2,8); ctx.fillRect(x-4,y-31+flote,8,2);
+  }
+};
+
+/* Props de LA MINA — paleta fría de piedra y cristal, muy distinta
+   al bosque cálido: acá el "verde" que brilla es el cristal, no la hoja. */
+const DOODAD_MINA={
+  grava(x,y){
+    ctx.fillStyle='#3a3d44';
+    for(let i=-1;i<=1;i++)ctx.fillRect(x+i*5-1,y-2,3,3);
+  },
+  cristal(x,y,v){
+    dibujarSombra(x,y,10,0.3);
+    const alto=14+v*10;
+    ctx.fillStyle='#2a7a72';
+    ctx.beginPath(); ctx.moveTo(x,y-alto); ctx.lineTo(x-6,y); ctx.lineTo(x+6,y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#5fe8d9';
+    ctx.beginPath(); ctx.moveTo(x,y-alto); ctx.lineTo(x-2,y-alto*0.4); ctx.lineTo(x+3,y-alto*0.5); ctx.closePath(); ctx.fill();
+  },
+  cristalGigante(x,y,v){
+    dibujarSombra(x,y,22,0.32);
+    const alto=40+v*24;
+    for(const dx of [-8,0,9]){
+      const h=alto*(0.7+hash(x+dx,y,7));
+      ctx.fillStyle='#245a6e';
+      ctx.beginPath(); ctx.moveTo(x+dx,y-h); ctx.lineTo(x+dx-7,y); ctx.lineTo(x+dx+7,y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#5fe8d9';
+      ctx.beginPath(); ctx.moveTo(x+dx,y-h); ctx.lineTo(x+dx-2,y-h*0.45); ctx.lineTo(x+dx+3,y-h*0.55); ctx.closePath(); ctx.fill();
+    }
+  },
+  rocaGrande(x,y,v){
+    dibujarSombra(x,y,26,0.3);
+    const r=22+v*14;
+    ctx.fillStyle='#3a3d44'; ctx.beginPath(); ctx.ellipse(x,y-r*0.35,r,r*0.66,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#54585f'; ctx.beginPath(); ctx.ellipse(x-r*0.25,y-r*0.5,r*0.5,r*0.36,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#1e2024'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x-r*0.3,y-r*0.6); ctx.lineTo(x+r*0.1,y-r*0.2); ctx.stroke();
+  },
+  estalactita(x,y,v){    // cuelga desde "el techo" — visual, no bloquea
+    const largo=30+v*26;
+    ctx.fillStyle='#2c2f34';
+    ctx.beginPath(); ctx.moveTo(x-9,y-largo-40); ctx.lineTo(x+9,y-largo-40); ctx.lineTo(x,y-40); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#45494f';
+    ctx.beginPath(); ctx.moveTo(x-9,y-largo-40); ctx.lineTo(x-2,y-largo-40); ctx.lineTo(x-1,y-42); ctx.closePath(); ctx.fill();
+    dibujarSombra(x,y,10,0.18);
+  },
+  lava(x,y){
+    ctx.fillStyle='#241a10'; ctx.beginPath(); ctx.ellipse(x,y,42,24,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#8a2a12'; ctx.beginPath(); ctx.ellipse(x,y,34,19,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#d9531f'; ctx.beginPath(); ctx.ellipse(x-4,y-2,20,11,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=`rgba(255,180,60,${0.5+Math.sin(Date.now()*0.004+x)*0.3})`;
+    ctx.beginPath(); ctx.ellipse(x+2,y,10,5,0,0,Math.PI*2); ctx.fill();
+  }
+};
+
+/* Props de EL CEMENTERIO — paleta fría y desaturada (azul-gris ceniza),
+   totalmente distinta del verde cálido del bosque y del ocre de la mina. */
+const DOODAD_CEMENTERIO={
+  pastoSeco(x,y){
+    ctx.strokeStyle='#5a6258'; ctx.lineWidth=2;
+    for(let i=-1;i<=1;i++){ ctx.beginPath(); ctx.moveTo(x+i*5,y); ctx.lineTo(x+i*5+i*2,y-7); ctx.stroke(); }
+  },
+  lapida(x,y,v){
+    dibujarSombra(x,y,14,0.28);
+    const alto=18+v*10;
+    ctx.fillStyle='#3a3f45';
+    if(v>0.5){ // lápida en arco
+      ctx.beginPath(); ctx.moveTo(x-10,y); ctx.lineTo(x-10,y-alto*0.5);
+      ctx.arc(x,y-alto*0.5,10,Math.PI,0); ctx.lineTo(x+10,y); ctx.closePath(); ctx.fill();
+    }else{ ctx.fillRect(x-9,y-alto,18,alto); }
+    ctx.fillStyle='#54595f'; ctx.fillRect(x-9,y-alto,5,alto);
+    ctx.strokeStyle='#20242a'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(x-3,y-alto*0.6); ctx.lineTo(x+3,y-alto*0.6); ctx.moveTo(x,y-alto*0.75); ctx.lineTo(x,y-alto*0.45); ctx.stroke();
+  },
+  arbolMuerto(x,y,v){    // ramas retorcidas, sin hojas — el opuesto exacto del árbol del bosque
+    dibujarSombra(x,y,20,0.24);
+    ctx.strokeStyle='#2c2f34'; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x-3,y-46); ctx.stroke();
+    ctx.lineWidth=3;
+    const ramas=[[-1,0.55,-22,-20],[1,0.7,20,-14],[-1,0.9,-16,-30],[1,0.95,14,-26]];
+    for(const [s,h,dx2,dy2] of ramas){
+      ctx.beginPath(); ctx.moveTo(x-3,y-46*h); ctx.lineTo(x-3+dx2*(0.6+v*0.4),y-46*h+dy2); ctx.stroke();
+    }
+  },
+  cerco(x,y,v){          // reja de hierro rota
+    ctx.strokeStyle='#3a3f45'; ctx.lineWidth=2.5;
+    for(let i=-1;i<=1;i++){
+      const alto=16+(i===0&&v>0.7?-6:0);
+      ctx.beginPath(); ctx.moveTo(x+i*10,y); ctx.lineTo(x+i*10,y-alto); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x+i*10,y-alto,1.5,0,Math.PI*2); ctx.fillStyle='#3a3f45'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.moveTo(x-10,y-11); ctx.lineTo(x+10,y-11); ctx.stroke();
+  },
+  cripta(x,y,v){         // pequeña cripta de piedra con entrada oscura
+    dibujarSombra(x,y,26,0.3);
+    ctx.fillStyle='#3a3f45'; ctx.fillRect(x-20,y-34,40,34);
+    ctx.fillStyle='#4a4f56'; ctx.fillRect(x-20,y-34,40,8);
+    ctx.beginPath(); ctx.moveTo(x-20,y-34); ctx.lineTo(x,y-48); ctx.lineTo(x+20,y-34); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#12151a'; ctx.beginPath(); ctx.ellipse(x,y-8,8,14,0,Math.PI,0); ctx.fill();
+    ctx.fillStyle=`rgba(125,196,106,${0.35+Math.sin(Date.now()*0.003)*0.15})`;
+    ctx.beginPath(); ctx.ellipse(x,y-10,4,7,0,Math.PI,0); ctx.fill();
+  },
+  fuegoFatuo(x,y,t){     // luz verdosa flotante, puramente ambiental
+    const flote=Math.sin((t||Date.now()*0.002))*6;
+    ctx.fillStyle='rgba(125,196,106,.28)';
+    ctx.beginPath(); ctx.arc(x,y-20+flote,14,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(180,232,160,.8)';
+    ctx.beginPath(); ctx.arc(x,y-20+flote,4,0,Math.PI*2); ctx.fill();
+  }
+};
+
+/* ---------------------------------------------------------------
+   5) META PERSISTENTE, ESTADO Y ENTRADA
+--------------------------------------------------------------- */
+function cargarMeta(){
+  let m;
+  try{ m=JSON.parse(localStorage.getItem('vigilia_meta_v1'))||{}; }
+  catch(e){ m={}; }
+  m.oro=m.oro||0; m.gemas=m.gemas||0;
+  m.reliquias=m.reliquias||[]; m.permanentes=m.permanentes||{};
+  m.armasDesbloqueadas=m.armasDesbloqueadas||{};
+  m.opciones=m.opciones||{sangre:false};
+  if(m.edificios){   // migración desde la vieja aldea, sin perder progreso
+    m.permanentes.danio=Math.max(m.permanentes.danio||0, m.edificios.herreria||0);
+    m.permanentes.vida=Math.max(m.permanentes.vida||0, m.edificios.laboratorio||0);
+    m.permanentes.fortuna=Math.max(m.permanentes.fortuna||0, m.edificios.castillo||0);
+    delete m.edificios;
+  }
+  return m;
+}
+function guardarMeta(){ try{ localStorage.setItem('vigilia_meta_v1',JSON.stringify(META)); }catch(e){} }
+const META=cargarMeta();
+
+let mundo=null;
+let heroeElegidoId='guerrero';
+
+/* ---- GUARDADO AUTOMÁTICO DE LA PARTIDA (en este dispositivo) ----
+   Sin servidor no hay nube ni ranking global, pero localStorage
+   permite cerrar la pestaña y retomar: imprescindible para partidas
+   de horas. Se guarda cada 10 s y al ocultar/cerrar la pestaña. */
+function guardarRun(){
+  if(!mundo||!mundo.corriendo)return;
+  const j=mundo.jugador;
+  const run={
+    idHeroe:mundo.idHeroe, tiempo:mundo.tiempo, kills:mundo.kills,
+    killsCiclo:mundo.killsCiclo, ciclo:mundo.ciclo,
+    intervaloActual:mundo.intervaloActual,
+    jugador:JSON.parse(JSON.stringify(j))   // todo el jugador, sin lista manual de campos
+  };
+  try{ localStorage.setItem('vigilia_run_v1',JSON.stringify(run)); }catch(e){}
+}
+function cargarRun(){
+  try{ return JSON.parse(localStorage.getItem('vigilia_run_v1')); }catch(e){ return null; }
+}
+function borrarRun(){ try{ localStorage.removeItem('vigilia_run_v1'); }catch(e){} }
+setInterval(guardarRun,10000);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden)guardarRun(); });
+addEventListener('beforeunload',guardarRun);
+const esTactil=!matchMedia('(pointer: fine)').matches;
+
+function estadoInicial(idHeroe,cicloInicial=1){
+  const H=REGISTRO.heroes[idHeroe];
+  const M=mundoParaCiclo(cicloInicial);
+  const hojas=[];
+  for(let i=0;i<16;i++){
+    hojas.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,
+      v:26+Math.random()*30,fase:Math.random()*10,
+      color:Math.random()<0.5?'#d9a04a':'#c96b3a'});
+  }
+  const j={
+    x:0,y:0,hp:H.hpMax,hpMax:H.hpMax,
+    nivel:1,xp:0,xpSiguiente:CONFIG.curvas.xpParaNivel(1),
+    velocidad:H.velocidad,radio:H.radio, vx:0, vy:0,
+    magnetRadio:CONFIG.comun.magnetRadio, bonoDanio:1, critBonus:0,
+    basico:JSON.parse(JSON.stringify(H.basico)),
+    especial:JSON.parse(JSON.stringify(H.especial)),
+    basicoTimer:0, especialTimer:H.especial.cooldown*0.5,
+    dashTimer:0, esquivaTimer:0, dashCd:0, dashCooldownMax:CONFIG.dash.cooldown,
+    dashDx:1, dashDy:0,
+    invulnTimer:0, mirandoAngulo:0, animT:0, animPunch:0, flip:false, raizTimer:0,
+    venenoTimer:0, venenoDps:0, venenoAcum:0,
+    /* Ágil */ dashDistMult:1, dashDanioBonusPct:0, dashDanioBonusTimer:0,
+    autoDodgeChance:0, critMoveThreshold:0, critBonusTemp:0, critBonusTempTimer:0, distanciaAcum:0,
+    /* Ofensivo */ lifesteal:0, explosivoChance:0,
+    /* Defensivo */ armadura:0, regenPorSeg:0, regenAcum:0,
+    escudoMax:0, escudoActual:0, escudoCargaTimer:0, reduccionDanio:0, resistenciaEstados:0,
+    /* Mágico */ onHitSlow:false, onHitVeneno:false, onCritExplosion:false,
+    /* seguimiento de estilo para el sorteo con sinergia */ estiloPicks:{}
+  };
+  for(const rid of META.reliquias){ if(REGISTRO.reliquias[rid])REGISTRO.reliquias[rid].aplicar(j); }
+  j.bonoDanio*=(1+0.06*nivelPerm('danio'));
+  const vidaExtra=15*nivelPerm('vida');
+  j.hpMax+=vidaExtra; j.hp+=vidaExtra;
+  j.velocidad*=(1+0.03*nivelPerm('velocidad'));
+  j.dashCooldownMax*=Math.pow(0.95,nivelPerm('esquiva'));
+  j.magnetRadio*=(1+0.15*nivelPerm('iman'));
+  /* arma legendaria equipada: reemplaza el básico del héroe, sea cual sea su clase */
+  const armaEquipadaId=Object.keys(META.armasDesbloqueadas||{}).find(id=>META.armasDesbloqueadas[id]);
+  if(armaEquipadaId && REGISTRO.armasLegendarias[armaEquipadaId]){
+    j.basico=JSON.parse(JSON.stringify(REGISTRO.armasLegendarias[armaEquipadaId].basico));
+    j.armaLegendaria=armaEquipadaId;
+  }
+  return {
+    corriendo:false,pausado:false,tiempo:0,kills:0,killsCiclo:0,ciclo:cicloInicial,ultimoTimestamp:0,
+    idHeroe, mundoDef:M, bioma:biomaParaCiclo(cicloInicial), estadoNivel:'oleadas', // oleadas → cinematica → jefe → victoria
+    cineT:0, hojas, jugador:j, jefe:null,
+    enemigos:[],gemas:[],botin:[],proyectiles:[],proyectilesEnemigos:[],ondas:[],zonas:[],
+    peligros:[],particulas:[],fantasmas:[],efectos:[],numerosDanio:[],curaciones:[],
+    proximaCuracionCheq:CONFIG.curacion.intervaloChequeo*0.4,
+    proximaAparicion:M.oleadas.intervaloInicial, intervaloActual:M.oleadas.intervaloInicial,
+    proximoAsalto:CONFIG.curvas.asaltoCada(cicloInicial), aviso:null,
+    shakeMag:0, shakeT:0, hitStop:0, flashDanio:0, flashBlanco:0,
+  };
+}
+
+/* --- entrada: teclado + mouse --- */
+const teclas={arriba:false,abajo:false,izquierda:false,derecha:false};
+const mouse={x:innerWidth/2,y:innerHeight/2,izq:false};
+addEventListener('keydown',e=>{
+  if(['ArrowUp','KeyW'].includes(e.code))teclas.arriba=true;
+  if(['ArrowDown','KeyS'].includes(e.code))teclas.abajo=true;
+  if(['ArrowLeft','KeyA'].includes(e.code))teclas.izquierda=true;
+  if(['ArrowRight','KeyD'].includes(e.code))teclas.derecha=true;
+  if(e.code==='ShiftLeft'||e.code==='ShiftRight'){ e.preventDefault(); intentarDash(); }
+  if(e.code==='Space'){ e.preventDefault(); intentarEspecial(); }
+});
+addEventListener('keyup',e=>{
+  if(['ArrowUp','KeyW'].includes(e.code))teclas.arriba=false;
+  if(['ArrowDown','KeyS'].includes(e.code))teclas.abajo=false;
+  if(['ArrowLeft','KeyA'].includes(e.code))teclas.izquierda=false;
+  if(['ArrowRight','KeyD'].includes(e.code))teclas.derecha=false;
+});
+lienzo.addEventListener('mousemove',e=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
+lienzo.addEventListener('mousedown',e=>{
+  if(e.button===0)mouse.izq=true;
+  if(e.button===2){ e.preventDefault(); intentarEspecial(); }
+});
+addEventListener('mouseup',e=>{ if(e.button===0)mouse.izq=false; });
+lienzo.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* --- táctil: joystick para moverse + botones de dash/poder ---
+   (modo provisional declarado: el básico auto-apunta al más cercano) */
+const joystick={activo:false,id:null,baseX:0,baseY:0,dx:0,dy:0,radioMax:46};
+if(esTactil){
+  lienzo.addEventListener('pointerdown',e=>{
+    if(!mundo||!mundo.corriendo)return;
+    joystick.activo=true; joystick.id=e.pointerId;
+    joystick.baseX=e.clientX; joystick.baseY=e.clientY; joystick.dx=0; joystick.dy=0;
+    dom.joystickBase.style.left=(e.clientX-48)+'px';
+    dom.joystickBase.style.top=(e.clientY-48)+'px';
+    dom.joystickBase.style.display='block';
+    dom.joystickNucleo.style.left='27px'; dom.joystickNucleo.style.top='27px';
+  });
+  lienzo.addEventListener('pointermove',e=>{
+    if(!joystick.activo||e.pointerId!==joystick.id)return;
+    let dx=e.clientX-joystick.baseX, dy=e.clientY-joystick.baseY;
+    const dist=Math.hypot(dx,dy);
+    if(dist>joystick.radioMax){dx=dx/dist*joystick.radioMax; dy=dy/dist*joystick.radioMax;}
+    joystick.dx=dx/joystick.radioMax; joystick.dy=dy/joystick.radioMax;
+    dom.joystickNucleo.style.left=(27+dx)+'px';
+    dom.joystickNucleo.style.top=(27+dy)+'px';
+  });
+  const soltar=e=>{
+    if(!joystick.activo||(e.pointerId!==undefined&&e.pointerId!==joystick.id))return;
+    joystick.activo=false; joystick.dx=0; joystick.dy=0;
+    dom.joystickBase.style.display='none';
+  };
+  lienzo.addEventListener('pointerup',soltar);
+  lienzo.addEventListener('pointercancel',soltar);
+  dom.btnDash.style.display='flex'; dom.btnPoder.style.display='flex';
+  dom.btnDash.addEventListener('pointerdown',e=>{e.preventDefault(); intentarDash();});
+  dom.btnPoder.addEventListener('pointerdown',e=>{e.preventDefault(); intentarEspecial();});
+}
+
+function vectorDeMovimiento(){
+  let x=0,y=0;
+  if(teclas.arriba)y-=1; if(teclas.abajo)y+=1;
+  if(teclas.izquierda)x-=1; if(teclas.derecha)x+=1;
+  if(joystick.activo){x+=joystick.dx; y+=joystick.dy;}
+  const d=Math.hypot(x,y); if(d>1){x/=d;y/=d;}
+  return {x,y};
+}
+
+/* --- utilidades de combate --- */
+function enemigoMasCercano(dx,dy,max=Infinity,incluirJefe=true){
+  let mejor=null,md=max;
+  for(const en of mundo.enemigos){
+    const d=Math.hypot(en.x-dx,en.y-dy);
+    if(d<md){md=d;mejor=en;}
+  }
+  if(incluirJefe&&mundo.jefe&&mundo.jefe.hp>0){
+    const d=Math.hypot(mundo.jefe.x-dx,mundo.jefe.y-dy);
+    if(d<md){md=d;mejor=mundo.jefe;}
+  }
+  return mejor;
+}
+function diferenciaAngular(a,b){
+  let d=(a-b)%(Math.PI*2);
+  if(d>Math.PI)d-=Math.PI*2; if(d<-Math.PI)d+=Math.PI*2;
+  return Math.abs(d);
+}
+function jugadorInvulnerable(){ const j=mundo.jugador; return j.invulnTimer>0||j.esquivaTimer>0; }
+function calcularDanio(base){
+  const j=mundo.jugador;
+  const bonoEsquiva=j.dashDanioBonusTimer>0?(1+(j.dashDanioBonusPct||0)):1;
+  const critTotal=CONFIG.critProb+(j.critBonus||0)+(j.critBonusTempTimer>0?(j.critBonusTemp||0):0);
+  const crit=Math.random()<critTotal;
+  return { v: base*bonoEsquiva*j.bonoDanio*(crit?CONFIG.critMult:1), crit };
+}
+function numeroDanio(x,y,v,crit=false){
+  mundo.numerosDanio.push({x,y:y-14,texto:(crit?'¡':'')+fmt(v)+(crit?'!':''),alpha:1,crit});
+}
+function chispas(x,y,color,n=5,fuerza=90){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2, vv=fuerza*0.4+Math.random()*fuerza*0.8;
+    mundo.particulas.push({x,y,vx:Math.cos(a)*vv,vy:Math.sin(a)*vv-30,
+      vida:0.25+Math.random()*0.25,color});
+  }
+}
+function sacudir(mag,dur=0.18){ mundo.shakeMag=Math.max(mundo.shakeMag,mag); mundo.shakeT=Math.max(mundo.shakeT,dur); }
+/* candidatos vivos a los que un proc de área (explosivo/crítico elemental)
+   puede saltar: todos los enemigos comunes + el jefe si está en pelea */
+function objetivosVivos(){
+  const l=[...mundo.enemigos];
+  if(mundo.jefe&&mundo.jefe.hp>0)l.push(mundo.jefe);
+  return l;
+}
+function golpearObjetivo(obj,base,ex=0,ey=0,esSplash=false){
+  if(obj.intangible)return;               // el fantasma, en su fase translúcida, no puede ser tocado
+  const j=mundo.jugador;
+  const {v,crit}=calcularDanio(base);
+  const danioFinal=v*(obj.vulnerable>0?1.5:1);
+  obj.hp-=danioFinal; obj.flashTimer=0.12;
+  if(obj.kx!==undefined){obj.kx+=ex;obj.ky+=ey;}
+  numeroDanio(obj.x,obj.y-(obj.radio||10),danioFinal,crit);
+  chispas(obj.x,obj.y-(obj.radio||10),crit?'#ffd166':'#f3efe6',crit?8:4);
+  if(crit)mundo.efectos.push({tipo:'critAnillo',t:0,duracion:0.3,radioMax:28,color:'255,209,102',cx:obj.x,cy:obj.y-(obj.radio||10)});
+  if(META.opciones&&META.opciones.sangre)chispas(obj.x,obj.y-(obj.radio||10),'#c9302f',crit?6:3,75);
+  if(crit){ sonido.critico(); sacudir(5,0.12); mundo.hitStop=Math.max(mundo.hitStop,0.05); }
+  else sonido.impacto();
+
+  if(j.lifesteal) j.hp=Math.min(j.hpMax, j.hp+danioFinal*j.lifesteal);   // Ofensivo: robo de vida
+
+  if(!esSplash){    // los procs de área nunca se re-disparan a sí mismos (sin cadenas infinitas)
+    if(j.onHitSlow && obj.slowFactor!==undefined){          // Mágico: Toque de Escarcha
+      obj.slowFactor=Math.min(obj.slowFactor,0.6); obj.slowTimer=Math.max(obj.slowTimer||0,0.8);
+    }
+    if(j.onHitVeneno && obj.envenenadoTimer!==undefined){    // Mágico: Toque Venenoso
+      obj.envenenadoTimer=Math.max(obj.envenenadoTimer,2.6);
+      obj.envenenadoDps=Math.max(obj.envenenadoDps||0, Math.round(base*0.12));
+    }
+    if(j.explosivoChance && Math.random()<j.explosivoChance){   // Ofensivo: ataques explosivos
+      for(const otro of objetivosVivos()){
+        if(otro===obj)continue;
+        if(Math.hypot(otro.x-obj.x,otro.y-obj.y)<55) golpearObjetivo(otro, danioFinal*0.5, 0,0,true);
+      }
+      chispas(obj.x,obj.y,'#ff8a3d',10,110); sonido.erupcion();
+    }
+    if(crit && j.onCritExplosion){        // Mágico: Chispa Elemental
+      for(const otro of objetivosVivos()){
+        if(otro===obj)continue;
+        if(Math.hypot(otro.x-obj.x,otro.y-obj.y)<70) golpearObjetivo(otro, danioFinal*0.4, 0,0,true);
+      }
+      chispas(obj.x,obj.y,'#c9a0ff',10,120);
+    }
+  }
+}
+/* veneno aplicado a un enemigo o al jefe (Toque Venenoso) — se llama una
+   vez por frame para cada objetivo desde su propio bucle de actualización */
+function tickEnvenenado(en,dt){
+  if(!(en.envenenadoTimer>0))return;
+  en.envenenadoTimer-=dt; en.envenenadoAcum=(en.envenenadoAcum||0)+dt;
+  while(en.envenenadoAcum>=1){
+    en.envenenadoAcum-=1; en.hp-=en.envenenadoDps;
+    chispas(en.x,en.y-(en.radio||10)*0.6,'#7dc46a',2,40);
+  }
+}
+/* Intercepción predictiva: apunta a dónde ESTARÁ el jugador, no a dónde
+   está ahora. Es lo que rompe la estrategia de "correr en círculos":
+   un perseguidor que corta camino hacia tu posición futura te alcanza
+   aunque gires en redondo, en vez de trazar tu misma órbita detrás tuyo. */
+function puntoInterceptado(en,j,factorVelocidad=1){
+  const velEfectiva=en.velocidad*factorVelocidad;
+  const dist=Math.hypot(j.x-en.x,j.y-en.y);
+  const leadT=Math.min(0.6, dist/(velEfectiva+60));
+  return { x:j.x+(j.vx||0)*leadT, y:j.y+(j.vy||0)*leadT };
+}
+/* separación tipo "boids": empuja suavemente lejos de aliados del mismo
+   tipo que estén demasiado cerca, para que los tiradores no se apilen
+   todos en el mismo punto de kiteo */
+function separarDeAliados(en,dt){
+  for(const otro of mundo.enemigos){
+    if(otro===en || otro.ia!==en.ia)continue;
+    const ddx=en.x-otro.x, ddy=en.y-otro.y;
+    if(Math.abs(ddx)>70||Math.abs(ddy)>70)continue;   // descarte barato antes de la raíz cuadrada
+    const dd=Math.hypot(ddx,ddy);
+    if(dd>0 && dd<70){ en.x+=(ddx/dd)*44*dt; en.y+=(ddy/dd)*44*dt; }
+  }
+}
+
+/* ---------------------------------------------------------------
+   6) ATAQUES DE HÉROES (apuntados al cursor) + DASH
+--------------------------------------------------------------- */
+function objetivosEnCono(origen,ang,rango,mitad){
+  const lista=[];
+  const candidatos=[...mundo.enemigos];
+  if(mundo.jefe&&mundo.jefe.hp>0)candidatos.push(mundo.jefe);
+  for(const en of candidatos){
+    const d=Math.hypot(en.x-origen.x,en.y-origen.y);
+    if(d<=rango+en.radio){
+      const a=Math.atan2(en.y-origen.y,en.x-origen.x);
+      if(diferenciaAngular(a,ang)<=mitad)lista.push({en,a});
+    }
+  }
+  return lista;
+}
+
+function ejecutarBasico(j){
+  const b=j.basico, ang=j.mirandoAngulo;
+  if(b.tipo==='cono'){
+    const mitad=(b.anguloCono*Math.PI/180)/2;
+    mundo.efectos.push({tipo:'barrido',t:0,duracion:0.2,ang,rango:b.rango,mitadCono:mitad,
+      color: mundo.idHeroe==='paladin'?'255,224,138':'232,232,240'});
+    sonido.tajo();
+    for(const {en,a} of objetivosEnCono(j,ang,b.rango,mitad)){
+      golpearObjetivo(en,b.danio,Math.cos(a)*(b.empuje||0),Math.sin(a)*(b.empuje||0));
+    }
+  }else if(b.tipo==='proyectil'){
+    mundo.proyectiles.push({tipo:b.proyectil,x:j.x,y:j.y,
+      vx:Math.cos(ang)*b.velocidadProyectil, vy:Math.sin(ang)*b.velocidadProyectil,
+      velocidad:b.velocidadProyectil, danio:b.danio, vida:1.8,
+      rebotesRestantes:b.rebotes||0, yaGolpeo:null});
+    chispas(j.x+Math.cos(ang)*16, j.y+Math.sin(ang)*16-8,
+      b.proyectil==='arcanoLegendario'?'#c9a0ff':(b.proyectil==='arcano'?'#bdefff':'#eafccb'), 2, 50);
+    sonido.disparo();
+  }
+  j.animPunch=0.12;
+}
+
+function ejecutarEspecial(j){
+  const e=j.especial, ang=j.mirandoAngulo;
+  if(e.tipo==='onda'){
+    mundo.ondas.push({x:j.x,y:j.y,ang,velocidad:e.velocidadOnda,ancho:e.anchoOnda,
+      danio:e.danio,vida:e.vidaOnda,yaGolpeados:new Set()});
+    sonido.tajo(); sacudir(4,0.1);
+  }else if(e.tipo==='aura'){
+    mundo.efectos.push({tipo:'aura',t:0,duracion:0.5,radioMax:e.radio,color:'79,216,255'});
+    sonido.aura();
+    const cand=[...mundo.enemigos]; if(mundo.jefe&&mundo.jefe.hp>0)cand.push(mundo.jefe);
+    for(const en of cand){
+      if(Math.hypot(en.x-j.x,en.y-j.y)<=e.radio){
+        golpearObjetivo(en,e.danio);
+        if(en.slowFactor!==undefined){en.slowFactor=e.ralentiza; en.slowTimer=e.duracionRalentizar;}
+      }
+    }
+  }else if(e.tipo==='zona'){
+    // hacia el cursor (o el enemigo más cercano en táctil)
+    let cx,cy;
+    if(esTactil){
+      const obj=enemigoMasCercano(j.x,j.y,600);
+      cx=obj?obj.x:j.x+Math.cos(ang)*160; cy=obj?obj.y:j.y+Math.sin(ang)*160;
+    }else{
+      cx=mouse.x-innerWidth/2+j.x; cy=mouse.y-innerHeight/2+j.y;
+    }
+    mundo.zonas.push({x:cx,y:cy,radio:e.radio,duracion:e.duracion,t:0,
+      intervaloTick:e.intervaloTick,proximoTick:0,danioPorTick:e.danioPorTick});
+    sonido.disparo();
+  }else if(e.tipo==='sagrado'){
+    mundo.efectos.push({tipo:'sagrado',t:0,duracion:0.7,radioMax:e.radio,color:'255,224,138'});
+    sonido.sagrado(); sacudir(6,0.15);
+    const cand=[...mundo.enemigos]; if(mundo.jefe&&mundo.jefe.hp>0)cand.push(mundo.jefe);
+    for(const en of cand){
+      if(Math.hypot(en.x-j.x,en.y-j.y)<=e.radio){
+        golpearObjetivo(en,e.danio);
+        if(en.stunTimer!==undefined&&!en.esJefe)en.stunTimer=Math.max(en.stunTimer,e.aturdirSegundos);
+      }
+    }
+  }
+}
+function intentarEspecial(){
+  if(!mundo||!mundo.corriendo||mundo.pausado||mundo.estadoNivel==='cinematica')return;
+  const j=mundo.jugador;
+  if(j.especialTimer>0)return;
+  ejecutarEspecial(j);
+  j.especialTimer=j.especial.cooldown;
+}
+function intentarDash(){
+  if(!mundo||!mundo.corriendo||mundo.pausado||mundo.estadoNivel==='cinematica')return;
+  const j=mundo.jugador;
+  if(j.dashCd>0||j.dashTimer>0)return;
+  const mov=vectorDeMovimiento();
+  if(mov.x||mov.y){ j.dashDx=mov.x; j.dashDy=mov.y; }
+  else { j.dashDx=Math.cos(j.mirandoAngulo); j.dashDy=Math.sin(j.mirandoAngulo); }
+  j.dashTimer=CONFIG.dash.duracion;
+  j.esquivaTimer=CONFIG.dash.invuln;
+  j.dashCd=j.dashCooldownMax;
+  j.raizTimer=0;                 // el dash rompe cualquier telaraña: tu escape siempre funciona
+  if(j.dashDanioBonusPct)j.dashDanioBonusTimer=1.0;   // Ágil: bono de daño tras esquivar
+  sonido.dash();
+}
+
+/* ---------------------------------------------------------------
+   7) OLEADAS · OBJETIVO · JEFE
+--------------------------------------------------------------- */
+function aparecerEnemigo(forzarElite=false){
+  const O=mundo.mundoDef.oleadas;
+  if(mundo.enemigos.length>=O.maxSimultaneos)return;
+  const tipo=O.tabla(mundo.tiempo,Math.random(),mundo.ciclo);
+  const elite=forzarElite || Math.random()<CONFIG.curvas.probElite(mundo.ciclo);
+  crearEnemigo(tipo,null,null,elite);
+}
+function crearEnemigo(tipo,px,py,elite=false){
+  const def=REGISTRO.enemigos[tipo];
+  let x=px,y=py;
+  if(x===null){
+    const ang=Math.random()*Math.PI*2;
+    const dist=Math.hypot(lienzo.width,lienzo.height)/2+70;
+    x=mundo.jugador.x+Math.cos(ang)*dist;
+    y=mundo.jugador.y+Math.sin(ang)*dist;
+  }
+  const escala=CONFIG.curvas.escalaHpEnemigo(mundo.tiempo/60, mundo.ciclo);
+  const mHp=elite?4:1, mVel=elite?1.2:1, mDanio=elite?1.6:1, mRadio=elite?1.35:1;
+  mundo.enemigos.push({
+    tipo,x,y,hp:def.hp*escala*mHp,hpMax:def.hp*escala*mHp,
+    radio:def.radio*mRadio,
+    velocidad:def.velocidad*(0.9+Math.random()*0.2)*mVel,
+    danio:def.danio*CONFIG.curvas.escalaDanioEnemigo(mundo.ciclo)*mDanio,
+    xpGemas:def.xpGemas*(elite?3:1),color:def.color,elite,veneno:def.veneno||0,
+    flashTimer:0,stunTimer:0,slowTimer:0,slowFactor:1,kx:0,ky:0,intangible:false,
+    envenenadoTimer:0,envenenadoDps:0,
+    animT:Math.random()*10,flip:false,vulnerable:0,
+    anguloFormacion:Math.random()*Math.PI*2, rodeo:Math.random()<0.5?1:-1,
+    ia:def.ia||'melee', iaEstado:'seguir', iaT:0.8+Math.random(), cargaAng:0
+  });
+}
+
+/* --- PATRONES DE JEFE (registrables; nuevos jefes = nuevas funciones) --- */
+const PATRONES_JEFE={
+  raices(jefe){       // 3 círculos telegrafiados sobre/junto al jugador
+    const p=mundo.jugador;
+    for(let i=0;i<3;i++){
+      const a=Math.random()*Math.PI*2, d=i===0?0:40+Math.random()*90;
+      mundo.peligros.push({x:p.x+Math.cos(a)*d,y:p.y+Math.sin(a)*d,
+        radio:52,t:0,dur:0.85,danio:26,tipo:'raiz'});
+    }
+  },
+  raicesAnillo(jefe){ // anillo de raíces alrededor del jugador: hay que dashear
+    const p=mundo.jugador;
+    for(let i=0;i<8;i++){
+      const a=i/8*Math.PI*2;
+      mundo.peligros.push({x:p.x+Math.cos(a)*95,y:p.y+Math.sin(a)*95,
+        radio:46,t:0,dur:1.0,danio:26,tipo:'raiz'});
+    }
+  },
+  roca(jefe){         // proyectil lanzado hacia el jugador (esquivable)
+    const p=mundo.jugador;
+    const a=Math.atan2(p.y-jefe.y,p.x-jefe.x)+(Math.random()-0.5)*0.2;
+    mundo.proyectilesEnemigos.push({x:jefe.x,y:jefe.y-40,
+      vx:Math.cos(a)*260,vy:Math.sin(a)*260,danio:24,radio:10,vida:3});
+    sonido.tajo();
+  },
+  invocar(jefe){      // cada jefe llama a SU propia tropa (jefe.invocaTipos)
+    const tipos=jefe.invocaTipos||['goblin','slimeVerde'];
+    for(let i=0;i<4;i++){
+      const a=i/4*Math.PI*2+Math.random();
+      crearEnemigo(tipos[Math.floor(Math.random()*tipos.length)],
+        jefe.x+Math.cos(a)*90, jefe.y+Math.sin(a)*90);
+    }
+    mundo.efectos.push({tipo:'aura',t:0,duracion:0.5,radioMax:110,color:'99,160,79',cx:jefe.x,cy:jefe.y});
+    sonido.aura();
+  },
+  golpe(jefe){        // manotazo si el jugador está cerca (telegrafiado corto)
+    const p=mundo.jugador;
+    if(Math.hypot(p.x-jefe.x,p.y-jefe.y)>jefe.radio+90)return;
+    mundo.peligros.push({x:jefe.x,y:jefe.y,radio:jefe.radio+95,t:0,dur:0.55,danio:30,tipo:'golpe'});
+  },
+  slam(jefe){         // gran golpe al suelo → luego queda VULNERABLE
+    mundo.peligros.push({x:jefe.x,y:jefe.y,radio:190,t:0,dur:1.1,danio:40,tipo:'slam',
+      alTerminar(){ jefe.vulnerable=2.6; numeroDanio(jefe.x,jefe.y-jefe.radio-30,0,false);
+        mundo.numerosDanio[mundo.numerosDanio.length-1].texto='¡VULNERABLE!';
+        mundo.numerosDanio[mundo.numerosDanio.length-1].crit=true; }});
+  },
+  cargaTriple(jefe){  // Lobo Alfa: 3 embestidas encadenadas con telegrafía
+    jefe.cargaPend=3;
+  },
+  aullido(jefe){      // llama a la manada
+    for(let i=0;i<3;i++){
+      const a=i/3*Math.PI*2+Math.random();
+      crearEnemigo('lobo', jefe.x+Math.cos(a)*110, jefe.y+Math.sin(a)*110);
+    }
+    mundo.efectos.push({tipo:'aura',t:0,duracion:0.5,radioMax:120,color:'138,143,152',cx:jefe.x,cy:jefe.y});
+    sonido.rugido();
+  },
+  temblor(jefe){       // Gólem: 3 anillos de onda expansiva en secuencia — hay que salir caminando, no de un salto
+    for(let i=0;i<3;i++){
+      setTimeout(()=>{
+        if(!mundo||!mundo.jefe)return;
+        mundo.peligros.push({x:jefe.x,y:jefe.y,radio:70+i*75,t:0,dur:0.5,danio:24,tipo:'raiz'});
+        sacudir(5,0.15);
+      }, i*260);
+    }
+    sonido.quake?.(); sonido.rugido();
+  },
+  ondaSuelo(jefe){     // Rey Esqueleto: "golpea el suelo generando ondas expansivas"
+    mundo.peligros.push({x:jefe.x,y:jefe.y,radio:210,t:0,dur:0.8,danio:26,tipo:'ondaHueso'});
+    sacudir(7,0.2); sonido.rugido();
+  }
+};
+
+function invocarJefe(){
+  /* el jefe depende del ciclo (y por lo tanto del mapa): ciclo 1 Ent,
+     ciclo 2 Alfa, ciclo 3 en adelante el Gólem de la Mina — todos
+     escalan además por CONFIG.curvas.hpJefe(ciclo). */
+  const def=REGISTRO.jefes[jefeIdParaCiclo(mundo.ciclo)];
+  const p=mundo.jugador;
+  const a=Math.random()*Math.PI*2;
+  mundo.jefe={
+    ...JSON.parse(JSON.stringify(def)),
+    esJefe:true,
+    x:p.x+Math.cos(a)*340, y:p.y+Math.sin(a)*340,
+    hpMax:def.hp, fase:0, timers:{}, flashTimer:0, vulnerable:0,
+    kx:0,ky:0, animT:0, flip:false, stunTimer:0, slowTimer:0, slowFactor:1,
+    cargaPend:0, cargaFase:null, cargaT:0, cargaAng:0, envenenadoTimer:0, envenenadoDps:0,
+  };
+  const multJefe=CONFIG.curvas.hpJefe(mundo.ciclo);
+  mundo.jefe.hp*=multJefe; mundo.jefe.hpMax=mundo.jefe.hp;
+  mundo.jefe.danioContacto*=CONFIG.curvas.escalaDanioEnemigo(mundo.ciclo);
+  for(const pat of mundo.jefe.fases[0].patrones)mundo.jefe.timers[pat.id]=pat.cada*0.6;
+  dom.jefeNombre.textContent=`${def.nombre}${mundo.ciclo>1?' · CICLO '+mundo.ciclo:''} — ${def.titulo}`;
+  dom.jefeUi.style.display='block';
+  sonido.rugido(); sacudir(9,0.5);
+}
+
+function actualizarJefe(dt){
+  const jf=mundo.jefe, p=mundo.jugador;
+  if(!jf)return;
+  if(jf.flashTimer>0)jf.flashTimer-=dt;
+  if(jf.vulnerable>0)jf.vulnerable-=dt;
+  tickEnvenenado(jf,dt);
+
+  /* cambio de fase al cruzar umbrales de vida */
+  const pct=jf.hp/jf.hpMax;
+  let faseNueva=jf.fases.length-1;
+  for(let i=0;i<jf.fases.length;i++){ if(pct>jf.fases[i].hastaHpPct){ faseNueva=i; break; } }
+  if(faseNueva!==jf.fase){
+    jf.fase=faseNueva; jf.timers={};
+    for(const pat of jf.fases[faseNueva].patrones)jf.timers[pat.id]=pat.cada*0.5;
+    sonido.rugido(); sacudir(8,0.4);
+    numeroDanio(jf.x,jf.y-jf.radio-40,0);
+    mundo.numerosDanio[mundo.numerosDanio.length-1].texto='¡EL GUARDIÁN SE ENFURECE!';
+    mundo.numerosDanio[mundo.numerosDanio.length-1].crit=true;
+  }
+
+  /* embestidas encadenadas (Lobo Alfa): telegrafía → carga → repite */
+  if(jf.cargaPend>0||jf.cargaFase){
+    jf.cargaT-=dt;
+    if(!jf.cargaFase){
+      jf.cargaFase='tel'; jf.cargaT=0.55;
+      jf.cargaAng=Math.atan2(p.y-jf.y,p.x-jf.x);
+      mundo.efectos.push({tipo:'lineaCarga',t:0,duracion:0.55,cx:jf.x,cy:jf.y,ang:jf.cargaAng,largo:460});
+      sonido.tajo();
+    }else if(jf.cargaFase==='tel'&&jf.cargaT<=0){
+      jf.cargaFase='run'; jf.cargaT=0.45; sonido.dash();
+    }else if(jf.cargaFase==='run'){
+      jf.x+=Math.cos(jf.cargaAng)*jf.velocidad*8*dt;
+      jf.y+=Math.sin(jf.cargaAng)*jf.velocidad*8*dt;
+      jf.animT+=dt*3; jf.flip=Math.cos(jf.cargaAng)<0;
+      if(Math.hypot(p.x-jf.x,p.y-jf.y)<jf.radio+p.radio && !jugadorInvulnerable()){
+        danioAlJugador(jf.danioContacto);
+      }
+      if(jf.cargaT<=0){ jf.cargaFase=null; jf.cargaPend--; }
+    }
+  }
+  /* persecución y patrones (no mientras está vulnerable o embistiendo) */
+  else if(jf.vulnerable<=0){
+    const dx=p.x-jf.x, dy=p.y-jf.y, d=Math.hypot(dx,dy)||1;
+    jf.x+=(dx/d)*jf.velocidad*dt; jf.y+=(dy/d)*jf.velocidad*dt;
+    jf.flip=dx<0; jf.animT+=dt;
+    if(d<jf.radio+p.radio && !jugadorInvulnerable()){
+      danioAlJugador(jf.danioContacto);
+    }
+    for(const pat of jf.fases[jf.fase].patrones){
+      jf.timers[pat.id]-=dt;
+      if(jf.timers[pat.id]<=0){
+        /* IA adaptativa: respeta la distancia, varía los tiempos,
+           y se vuelve más agresivo a medida que pierde vida */
+        const dJug=Math.hypot(p.x-jf.x,p.y-jf.y);
+        if((pat.lejos&&dJug<170)||(pat.cerca&&dJug>jf.radio+150)){ jf.timers[pat.id]=0.4; continue; }
+        PATRONES_JEFE[pat.id](jf);
+        const agresividad=0.55+0.45*(jf.hp/jf.hpMax);
+        jf.timers[pat.id]=pat.cada*agresividad*(0.85+Math.random()*0.3);
+      }
+    }
+  }
+
+  dom.jefeBarra.style.width=Math.max(0,pct*100)+'%';
+
+  if(jf.hp<=0){
+    for(let i=0;i<50;i++)chispas(jf.x,jf.y-20,i%3===0?'#ffd166':(i%2?'#63a04f':'#6b4a2e'),1,260);
+    for(let i=0;i<3;i++)mundo.efectos.push({tipo:'aura',t:-i*0.12,duracion:0.7,radioMax:160+i*60,color:'255,209,102',cx:jf.x,cy:jf.y});
+    mundo.hitStop=0.5;                 // cámara lenta del golpe final
+    mundo.flashBlanco=0.5;
+    sacudir(14,0.8); sonido.rugido();
+    victoria();
+  }
+}
+
+function danioAlJugador(cantBase){
+  const j=mundo.jugador;
+  if(j.autoDodgeChance && Math.random()<j.autoDodgeChance){    // Ágil: esquiva automática
+    numeroDanio(j.x,j.y-j.radio-8,0);
+    mundo.numerosDanio[mundo.numerosDanio.length-1].texto='¡ESQUIVADO!';
+    mundo.numerosDanio[mundo.numerosDanio.length-1].crit=true;
+    chispas(j.x,j.y-j.radio,'#9adfff',7,80);
+    sonido.dash();
+    return;
+  }
+  let cantidad=Math.max(1, cantBase-(j.armadura||0));   // Defensivo: armadura (reducción plana)
+  cantidad*=(1-(j.reduccionDanio||0));                    // Defensivo: reducción porcentual
+  if(j.escudoActual>0){                                   // Defensivo: escudo temporal
+    const absorbido=Math.min(j.escudoActual,cantidad);
+    j.escudoActual-=absorbido; cantidad-=absorbido;
+    chispas(j.x,j.y-j.radio,'#5aa7d0',9,80);
+  }
+  j.invulnTimer=CONFIG.comun.invulnSegundos;
+  if(cantidad<=0.05){ sonido.golpe(); return; }   // completamente absorbido: sin drama de pantalla
+  j.hp-=cantidad;
+  mundo.flashDanio=0.25;
+  sacudir(7,0.22); sonido.danioJugador();
+  if(j.hp<=0)terminarPartida();
+}
+
+/* ---------------------------------------------------------------
+   8) BUCLE — ACTUALIZAR
+--------------------------------------------------------------- */
+function actualizar(dt){
+  const j=mundo.jugador;
+  mundo.tiempo+=dt;
+
+  /* cinemática del jefe: bandas negras, sin control, luego pelea */
+  if(mundo.estadoNivel==='cinematica'){
+    mundo.cineT+=dt;
+    if(mundo.cineT>2.4){ mundo.estadoNivel='jefe'; }
+    actualizarHud();
+    return;
+  }
+
+  /* apuntado: el héroe SIEMPRE mira al cursor (o al más cercano en táctil) */
+  if(esTactil){
+    const obj=enemigoMasCercano(j.x,j.y,900);
+    if(obj)j.mirandoAngulo=Math.atan2(obj.y-j.y,obj.x-j.x);
+  }else{
+    j.mirandoAngulo=Math.atan2(mouse.y-innerHeight/2,mouse.x-innerWidth/2);
+  }
+  j.flip=Math.cos(j.mirandoAngulo)<0;
+
+  /* movimiento + dash */
+  if(j.dashTimer>0){
+    j.dashTimer-=dt;
+    const distDash=CONFIG.dash.velocidad*(j.dashDistMult||1);
+    j.x+=j.dashDx*distDash*dt;
+    j.y+=j.dashDy*distDash*dt;
+    j.vx=j.dashDx*distDash; j.vy=j.dashDy*distDash;
+    j.animT+=dt*2;
+    mundo.fantasmas.push({x:j.x,y:j.y,frame:Math.floor(j.animT*7)%2,flip:j.flip,alpha:0.5});
+  }else if(!(j.raizTimer>0)){
+    const mov=vectorDeMovimiento();
+    j.x+=mov.x*j.velocidad*dt; j.y+=mov.y*j.velocidad*dt;
+    j.vx=mov.x*j.velocidad; j.vy=mov.y*j.velocidad;   // velocidad real: la IA la usa para anticipar
+    if(mov.x||mov.y){
+      j.animT+=dt;
+      if(j.critMoveThreshold){                    // Ágil: crítico cargado por movimiento
+        j.distanciaAcum=(j.distanciaAcum||0)+j.velocidad*dt;
+        if(j.distanciaAcum>=j.critMoveThreshold){
+          j.distanciaAcum-=j.critMoveThreshold;
+          j.critBonusTempTimer=2.5;
+          chispas(j.x,j.y-j.radio,'#9adfff',5,60);
         }
+      }
+    }
+  }else{ j.vx=0; j.vy=0; }
+  if(j.esquivaTimer>0)j.esquivaTimer-=dt;
+  if(j.dashCd>0)j.dashCd-=dt;
+  if(j.invulnTimer>0)j.invulnTimer-=dt;
+  if(j.animPunch>0)j.animPunch=Math.max(0,j.animPunch-dt*1.2);
+  for(const f of mundo.fantasmas)f.alpha-=dt*2.4;
+  mundo.fantasmas=mundo.fantasmas.filter(f=>f.alpha>0);
 
-        function handleFile(e) {
-            const reader = new FileReader();
-            reader.onload = function(evt) {
-                const data = XLSX.read(evt.target.result, {type: 'binary', cellDates: true});
-                fullData = XLSX.utils.sheet_to_json(data.Sheets[data.SheetNames[0]]).map((row, i) => ({ 
-                    ...row, 
-                    id: i,
-                    CostoNum: parseFloat(row.TotalCosto || row.totalcosto || 0), 
-                    Unidades: parseInt(row.cantidad || row.Cantidad || 0),
-                    motivoRaw: row.motivo || '',
-                    observacion: row.observacion || row.Observacion || ''
-                }));
-                const sucursales = [...new Set(fullData.map(r => r.sucursal).filter(Boolean))].sort();
-                const observaciones = [...new Set(fullData.map(r => r.observacion).filter(Boolean))].sort();
-                
-                document.getElementById('sucursalFilter').innerHTML = `<option value="TODAS">Todas las sucursales</option>` + sucursales.map(s => `<option value="${s}">${s}</option>`).join('');
-                document.getElementById('motivoFilter').innerHTML = `<option value="TODOS">Todos los motivos</option>` + MOTIVOS_CONFIG.map(m => `<option value="${m}">${m}</option>`).join('');
-                document.getElementById('observacionFilter').innerHTML = `<option value="TODAS">Todas las observaciones</option>` + observaciones.map(o => `<option value="${o}">${o}</option>`).join('');
-                
-                document.getElementById('dashboard').classList.remove('hidden');
-                document.getElementById('controls').classList.remove('hidden');
-                document.getElementById('btnPdf').classList.remove('hidden');
-                document.getElementById('btnClear').classList.remove('hidden');
-                document.getElementById('btnDelete').classList.remove('hidden');
-                renderDashboard();
-            };
-            reader.readAsBinaryString(e.target.files[0]);
+  /* ataque básico manual: clic sostenido (en táctil, automático) */
+  /* disparo CONTINUO (estilo Brotato): apuntás, el héroe ataca solo */
+  j.basicoTimer-=dt;
+  if(j.basicoTimer<=0){
+    if(!esTactil || enemigoMasCercano(j.x,j.y,900)){
+      ejecutarBasico(j);
+      j.basicoTimer=j.basico.cooldown;
+    }
+  }
+  if(j.especialTimer>0)j.especialTimer-=dt;
+
+  /* oleadas: solo mientras el objetivo no se cumple */
+  if(mundo.estadoNivel==='oleadas'){
+    mundo.proximaAparicion-=dt;
+    if(mundo.proximaAparicion<=0){
+      aparecerEnemigo();
+      const O=mundo.mundoDef.oleadas;
+      mundo.intervaloActual=Math.max(O.intervaloMinimo,mundo.intervaloActual*O.rampa);
+      mundo.proximaAparicion=mundo.intervaloActual;
+    }
+    mundo.proximoAsalto-=dt;
+    if(mundo.proximoAsalto<=0){
+      mundo.proximoAsalto=CONFIG.curvas.asaltoCada(mundo.ciclo);
+      mundo.aviso={texto:'¡OLEADA DE ASALTO!',t:1.8};
+      sonido.rugido(); sacudir(5,0.2);
+      for(let i=0;i<6;i++)aparecerEnemigo();
+      aparecerEnemigo(true);            // un campeón garantizado
+    }
+    if(mundo.killsCiclo>=CONFIG.curvas.metaKills(mundo.ciclo)){
+      mundo.estadoNivel='cinematica'; mundo.cineT=0;
+      invocarJefe();
+    }
+  }
+
+  if(mundo.estadoNivel==='jefe')actualizarJefe(dt);
+
+  /* proyectiles del héroe (rectos, hacia donde apuntaste) */
+  for(const p of mundo.proyectiles){
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vida-=dt;
+    const cand=[...mundo.enemigos]; if(mundo.jefe&&mundo.jefe.hp>0)cand.push(mundo.jefe);
+    for(const en of cand){
+      if(en===p.yaGolpeo)continue;   // el rebote no vuelve a pegarle al mismo blanco
+      if(Math.hypot(en.x-p.x,en.y-p.y)<en.radio+4){
+        golpearObjetivo(en,p.danio);
+        if(p.rebotesRestantes>0){
+          p.rebotesRestantes--; p.yaGolpeo=en;
+          const siguiente=enemigoMasCercano(en.x,en.y,420);
+          if(siguiente && siguiente!==en){
+            const a=Math.atan2(siguiente.y-en.y,siguiente.x-en.x);
+            p.x=en.x; p.y=en.y; p.vx=Math.cos(a)*p.velocidad; p.vy=Math.sin(a)*p.velocidad;
+            chispas(en.x,en.y,'#c9a0ff',6,90); sonido.disparo();
+          }else{ p.vida=0; }
+        }else{ p.vida=0; }
+        break;
+      }
+    }
+  }
+  mundo.proyectiles=mundo.proyectiles.filter(p=>p.vida>0);
+
+  /* proyectiles enemigos (esquivables con dash) */
+  for(const p of mundo.proyectilesEnemigos){
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.vida-=dt;
+    if(Math.hypot(j.x-p.x,j.y-p.y)<j.radio+p.radio && !jugadorInvulnerable()){
+      danioAlJugador(p.danio);
+      if(p.tipo==='tela'){ j.raizTimer=1.15*(1-(j.resistenciaEstados||0)); sonido.aura(); }  // ENRAIZADO: no podés moverte
+      p.vida=0;
+    }
+  }
+  mundo.proyectilesEnemigos=mundo.proyectilesEnemigos.filter(p=>p.vida>0);
+  if(j.raizTimer>0)j.raizTimer-=dt;
+  if(j.venenoTimer>0){
+    j.venenoTimer-=dt; j.venenoAcum+=dt;
+    while(j.venenoAcum>=1){          // el veneno pega una vez por segundo, ignora i-frames
+      j.venenoAcum-=1; j.hp-=j.venenoDps;
+      chispas(j.x,j.y-j.radio,'#7dc46a',3,40);
+      if(j.hp<=0){ terminarPartida(); return; }
+    }
+  }
+  if(j.dashDanioBonusTimer>0)j.dashDanioBonusTimer-=dt;      // Ágil: bono de daño post-esquiva
+  if(j.critBonusTempTimer>0)j.critBonusTempTimer-=dt;        // Ágil: crítico cargado por movimiento
+  if(j.regenPorSeg){                                          // Defensivo: regeneración lenta
+    j.regenAcum=(j.regenAcum||0)+dt;
+    while(j.regenAcum>=1){ j.regenAcum-=1; j.hp=Math.min(j.hpMax,j.hp+j.regenPorSeg); }
+  }
+  if(j.escudoMax){                                            // Defensivo: escudo temporal
+    if(j.escudoActual<j.escudoMax){
+      j.escudoCargaTimer=(j.escudoCargaTimer||0)+dt;
+      if(j.escudoCargaTimer>=14){
+        j.escudoCargaTimer=0; j.escudoActual=j.escudoMax;
+        chispas(j.x,j.y-j.radio,'#5aa7d0',10,90); sonido.subirNivel();
+      }
+    }else j.escudoCargaTimer=0;
+  }
+
+  /* ondas del guerrero */
+  for(const o of mundo.ondas){
+    o.x+=Math.cos(o.ang)*o.velocidad*dt; o.y+=Math.sin(o.ang)*o.velocidad*dt; o.vida-=dt;
+    const cand=[...mundo.enemigos]; if(mundo.jefe&&mundo.jefe.hp>0)cand.push(mundo.jefe);
+    for(const en of cand){
+      if(o.yaGolpeados.has(en))continue;
+      const dx=en.x-o.x, dy=en.y-o.y;
+      const adelante=dx*Math.cos(o.ang)+dy*Math.sin(o.ang);
+      const lateral=Math.abs(-dx*Math.sin(o.ang)+dy*Math.cos(o.ang));
+      if(Math.abs(adelante)<18 && lateral<o.ancho/2+en.radio){
+        golpearObjetivo(en,o.danio); o.yaGolpeados.add(en);
+      }
+    }
+  }
+  mundo.ondas=mundo.ondas.filter(o=>o.vida>0);
+
+  /* zonas del arquero */
+  for(const z of mundo.zonas){
+    z.t+=dt; z.proximoTick-=dt;
+    if(z.proximoTick<=0){
+      z.proximoTick=z.intervaloTick;
+      const cand=[...mundo.enemigos]; if(mundo.jefe&&mundo.jefe.hp>0)cand.push(mundo.jefe);
+      for(const en of cand){
+        if(Math.hypot(en.x-z.x,en.y-z.y)<=z.radio+en.radio)golpearObjetivo(en,z.danioPorTick);
+      }
+    }
+  }
+  mundo.zonas=mundo.zonas.filter(z=>z.t<z.duracion);
+
+  /* peligros telegrafiados del jefe */
+  for(const pe of mundo.peligros){
+    pe.t+=dt;
+    if(pe.t>=pe.dur){
+      chispas(pe.x,pe.y,pe.tipo==='estallido'?'#ff8a3d':(pe.tipo==='raiz'?'#6b4a2e':(pe.tipo==='ondaHueso'?'#e8e4da':'#8a6a44')),10,140);
+      sonido.erupcion(); sacudir(4,0.12);
+      if(Math.hypot(j.x-pe.x,j.y-pe.y)<pe.radio+j.radio*0.4 && !jugadorInvulnerable()){
+        danioAlJugador(pe.danio);
+      }
+      if(pe.alTerminar)pe.alTerminar();
+      pe.listo=true;
+    }
+  }
+  mundo.peligros=mundo.peligros.filter(pe=>!pe.listo);
+
+  /* revenant: el esqueleto, la primera vez que muere, se levanta de nuevo */
+  for(const en of mundo.enemigos){
+    if(en.ia==='revenant' && en.hp<=0 && !en.revivido){
+      en.revivido=true;
+      en.hp=en.hpMax*0.45; en.hpMax=en.hp;
+      en.flashTimer=0.3;
+      mundo.efectos.push({tipo:'critAnillo',t:0,duracion:0.5,radioMax:34,color:'255,93,93',cx:en.x,cy:en.y});
+      numeroDanio(en.x,en.y-en.radio-16,0);
+      mundo.numerosDanio[mundo.numerosDanio.length-1].texto='¡SE LEVANTA!';
+      mundo.numerosDanio[mundo.numerosDanio.length-1].crit=true;
+      sonido.rugido();
+    }
+  }
+
+  /* limpiar enemigos muertos → gemas + partículas */
+  mundo.enemigos=mundo.enemigos.filter(en=>{
+    if(en.hp<=0){
+      mundo.kills++; mundo.killsCiclo++;
+      if(en.elite){                 // botín garantizado del campeón
+        for(let i=0;i<3;i++)mundo.botin.push({x:en.x+(Math.random()*24-12),y:en.y+(Math.random()*24-12),tipo:'oro',recolectado:false});
+        chispas(en.x,en.y-en.radio,'#ffd166',10,150);
+        if(Math.random()<0.025){       // objeto RARO de verdad: ni 1 de cada 20 campeones la suelta
+          mundo.botin.push({x:en.x,y:en.y-14,tipo:'gema',recolectado:false});
         }
+      }
+      if(en.ia==='explota'){        // ¡estalla! zona de peligro instantánea
+        mundo.peligros.push({x:en.x,y:en.y,radio:64,t:0,dur:0.45,danio:en.danio*2,tipo:'estallido'});
+        mundo.efectos.push({tipo:'aura',t:0,duracion:0.4,radioMax:64,color:'255,140,60',cx:en.x,cy:en.y});
+      }
+      for(let i=0;i<en.xpGemas;i++){
+        mundo.gemas.push({x:en.x+(Math.random()*20-10),y:en.y+(Math.random()*20-10),recolectada:false});
+      }
+      if(Math.random()<0.20)mundo.botin.push({x:en.x,y:en.y,tipo:'oro',recolectado:false});
+      for(let i=0;i<8;i++){
+        const a=Math.random()*Math.PI*2, v=40+Math.random()*90;
+        mundo.particulas.push({x:en.x,y:en.y-en.radio*0.6,
+          vx:Math.cos(a)*v,vy:Math.sin(a)*v-40,vida:0.5+Math.random()*0.3,
+          color:i%3===0?'#e8e4da':en.color});
+      }
+      return false;
+    }
+    return true;
+  });
 
-        function renderDashboard() {
-            const sucursal = document.getElementById('sucursalFilter').value;
-            const motivoSel = document.getElementById('motivoFilter').value;
-            const obsSel = document.getElementById('observacionFilter').value;
-            
-            let data = sucursal === 'TODAS' ? fullData : fullData.filter(r => r.sucursal === sucursal);
-            if (motivoSel !== 'TODOS') data = data.filter(r => (r.motivoRaw || '').toLowerCase().trim() === motivoSel.toLowerCase().trim());
-            if (obsSel !== 'TODAS') data = data.filter(r => (r.observacion || '').trim() === obsSel.trim());
-            
-            const isAlta = (m) => ['ajuste por bonificación de proveedores', 'ajuste por fraccionados', 'ajuste por ingreso de mercadería', 'ajuste por inventario', 'ajuste por vale no retirado'].includes((m||'').toLowerCase().trim());
-            const isBaja = (m) => ['ajuste por error de ingreso', 'ajuste por fraccionador', 'ajuste por robo/hurto', 'devolucion a proveedores', 'devolucion ace', 'devolucion comercial', 'faltante', 'roto/mal estado', 'uso interno', 'vencido'].includes((m||'').toLowerCase().trim());
+  for(const p of mundo.particulas){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=180*dt; p.vida-=dt; }
+  mundo.particulas=mundo.particulas.filter(p=>p.vida>0);
 
-            const altas = data.filter(r => isAlta(r.motivoRaw)).reduce((acc, r) => acc + r.CostoNum, 0);
-            const bajas = data.filter(r => isBaja(r.motivoRaw)).reduce((acc, r) => acc + r.CostoNum, 0);
-            const trazab = data.filter(r => (r.motivoRaw || '').toLowerCase().includes('trazabilidad')).reduce((acc, r) => acc + r.CostoNum, 0);
-            
-            document.getElementById('statsContainer').innerHTML = `
-                <div class="bg-emerald-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-emerald-700 font-bold uppercase">Altas</span><span class="text-xl font-black text-emerald-900">${formatCurrency(altas)}</span></div>
-                <div class="bg-red-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-red-700 font-bold uppercase">Bajas</span><span class="text-xl font-black text-red-900">${formatCurrency(bajas)}</span></div>
-                <div class="bg-amber-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-amber-700 font-bold uppercase">Trazables</span><span class="text-xl font-black text-amber-900">${formatCurrency(trazab)}</span></div>
-                <div class="bg-blue-50 p-5 rounded-2xl flex justify-between items-center"><span class="text-xs text-blue-700 font-bold uppercase">Balance</span><span class="text-xl font-black text-blue-900">${formatCurrency(altas - bajas)}</span></div>
-            `;
-            const motivos = {};
-            data.forEach(r => { const m = r.motivoRaw || 'Sin motivo'; if(!motivos[m]) motivos[m] = { cant: 0, unid: 0 }; motivos[m].cant += 1; motivos[m].unid += (r.Unidades || 0); });
-            document.getElementById('motivosContainer').innerHTML = Object.entries(motivos).sort((a,b) => b[1].cant - a[1].cant).slice(0, 10).map(m => `<div class="flex justify-between border-b pb-2"><span class="text-sm font-semibold text-slate-700">${m[0]}</span><span class="text-xs text-slate-500 font-bold">${m[1].cant} | ${m[1].unid}</span></div>`).join('');
-            
-            let sortedData = [...data].sort((a,b) => b.CostoNum - a.CostoNum);
-            if (!viewAll) sortedData = sortedData.slice(0, 20);
-            document.getElementById('topGravesContainer').innerHTML = sortedData.map(r => `
-                <tr class="border-b border-slate-50">
-                    <td class="py-4 text-xs">${formatDate(r.Fecha)}</td>
-                    <td class="py-4 text-xs font-medium">${r.sucursal || ''}</td>
-                    <td class="py-4 cursor-pointer hover:bg-slate-50" onclick="showModal(${r.id})"><div class="font-bold text-xs">${r.usuario || '-'}</div><div class="text-blue-800 text-[10px] font-mono font-bold">${r.NroBaja || '-'}</div></td>
-                    <td class="py-4 text-xs">${r.producto || ''}</td>
-                    <td class="py-4 text-xs font-bold ${isAlta(r.motivoRaw) ? 'text-emerald-600' : (isBaja(r.motivoRaw) ? 'text-red-600' : 'text-amber-600')}">${r.motivoRaw}</td>
-                    <td class="py-4 text-right font-black text-xs">${formatCurrency(r.CostoNum)}</td>
-                </tr>`).join('');
+  /* enemigos comunes */
+  for(const en of mundo.enemigos){
+    if(en.flashTimer>0)en.flashTimer-=dt;
+    tickEnvenenado(en,dt);
+    en.x+=en.kx*dt; en.y+=en.ky*dt;
+    en.kx*=Math.pow(0.02,dt); en.ky*=Math.pow(0.02,dt);
+    if(en.stunTimer>0){ en.stunTimer-=dt; continue; }
+    if(en.slowTimer>0){ en.slowTimer-=dt; if(en.slowTimer<=0)en.slowFactor=1; }
+    const dx=j.x-en.x, dy=j.y-en.y, dist=Math.hypot(dx,dy)||1;
+
+    if(en.ia==='carga'){
+      /* lobo: acecha → se planta y telegrafía → EMBISTE en línea recta */
+      en.iaT-=dt;
+      if(en.iaEstado==='seguir'){
+        en.x+=(dx/dist)*en.velocidad*en.slowFactor*dt;
+        en.y+=(dy/dist)*en.velocidad*en.slowFactor*dt;
+        en.animT+=dt*en.slowFactor; en.flip=dx<0;
+        if(dist<300 && en.iaT<=0){
+          en.iaEstado='tel'; en.iaT=0.55;
+          const pred=puntoInterceptado(en,j,3.6);       // anticipa: apunta a tu trayectoria
+          en.cargaAng=Math.atan2(pred.y-en.y,pred.x-en.x);
+          mundo.efectos.push({tipo:'lineaCarga',t:0,duracion:0.55,cx:en.x,cy:en.y,ang:en.cargaAng,largo:340});
         }
+      }else if(en.iaEstado==='tel'){
+        en.flip=Math.cos(en.cargaAng)<0;
+        if(en.iaT<=0){ en.iaEstado='run'; en.iaT=0.42; sonido.dash(); }
+      }else{
+        en.x+=Math.cos(en.cargaAng)*en.velocidad*3.6*en.slowFactor*dt;
+        en.y+=Math.sin(en.cargaAng)*en.velocidad*3.6*en.slowFactor*dt;
+        en.animT+=dt*2.5;
+        if(en.iaT<=0){ en.iaEstado='seguir'; en.iaT=1.4; }
+      }
+    }else if(en.ia==='tirador'){
+      /* chamán: guarda distancia y lanza proyectiles, sin apilarse con otros */
+      en.iaT-=dt; en.flip=dx<0; en.animT+=dt*en.slowFactor;
+      if(dist>300){ en.x+=(dx/dist)*en.velocidad*en.slowFactor*dt; en.y+=(dy/dist)*en.velocidad*en.slowFactor*dt; }
+      else if(dist<160){ en.x-=(dx/dist)*en.velocidad*0.8*en.slowFactor*dt; en.y-=(dy/dist)*en.velocidad*0.8*en.slowFactor*dt; }
+      else if(en.iaT<=0){
+        en.iaT=2.2;
+        const a=Math.atan2(dy,dx);
+        mundo.proyectilesEnemigos.push({x:en.x,y:en.y-10,vx:Math.cos(a)*230,vy:Math.sin(a)*230,
+          danio:en.danio,radio:6,vida:2.4,tipo:'bolt'});
+        sonido.disparo();
+      }
+      separarDeAliados(en,dt);
+    }else if(en.ia==='tejedora'){
+      /* araña: dispara telarañas que ENRAÍZAN (no dañan mucho, pero
+         inmovilizan) — obliga a gastar el dash para liberarse, o a
+         cortar la distancia antes de que dispare de nuevo */
+      en.iaT-=dt; en.flip=dx<0; en.animT+=dt*en.slowFactor;
+      if(dist>260){ en.x+=(dx/dist)*en.velocidad*en.slowFactor*dt; en.y+=(dy/dist)*en.velocidad*en.slowFactor*dt; }
+      else if(dist<110){ en.x-=(dx/dist)*en.velocidad*0.7*en.slowFactor*dt; en.y-=(dy/dist)*en.velocidad*0.7*en.slowFactor*dt; }
+      else if(en.iaT<=0){
+        en.iaT=3.1;
+        const a=Math.atan2(dy,dx);
+        mundo.proyectilesEnemigos.push({x:en.x,y:en.y-8,vx:Math.cos(a)*200,vy:Math.sin(a)*200,
+          danio:en.danio*0.4,radio:7,vida:2.2,tipo:'tela'});
+        sonido.disparo();
+      }
+      separarDeAliados(en,dt);
+    }else if(en.ia==='fantasmal'){
+      /* fantasma: alterna sólido (te persigue rápido, hace daño) y
+         translúcido (intangible: no golpea, no lo podés golpear —
+         hay que ESPERAR a que se solidifique para pelear) */
+      en.iaT-=dt;
+      if(en.iaT<=0){
+        en.intangible=!en.intangible;
+        en.iaT=en.intangible?1.3:1.6;
+      }
+      const vel=en.intangible?en.velocidad*0.5:en.velocidad*1.15;
+      en.x+=(dx/dist)*vel*en.slowFactor*dt; en.y+=(dy/dist)*vel*en.slowFactor*dt;
+      en.animT+=dt*en.slowFactor; en.flip=dx<0;
+    }else if(en.ia==='invocador'){
+      /* acólito: guarda distancia y cría slimes sin parar. Al huir,
+         busca poner un aliado cuerpo a cuerpo entre él y vos. */
+      en.iaT-=dt; en.flip=dx<0; en.animT+=dt*en.slowFactor;
+      if(dist>340){ en.x+=(dx/dist)*en.velocidad*en.slowFactor*dt; en.y+=(dy/dist)*en.velocidad*en.slowFactor*dt; }
+      else if(dist<180){
+        let hx=-dx/dist, hy=-dy/dist;              // huida base: directo lejos tuyo
+        let mejorAliado=null, mejorD=260;
+        for(const otro of mundo.enemigos){
+          if(otro===en||!(otro.ia==='melee'||otro.ia==='carga'))continue;
+          const dd=Math.hypot(otro.x-en.x,otro.y-en.y);
+          if(dd<mejorD){mejorD=dd;mejorAliado=otro;}
+        }
+        if(mejorAliado){                            // sesga la huida hacia ese aliado: "escondete atrás"
+          const ax=mejorAliado.x-en.x, ay=mejorAliado.y-en.y, al=Math.hypot(ax,ay)||1;
+          hx=(hx+ (ax/al)*0.8)/1.8; hy=(hy+ (ay/al)*0.8)/1.8;
+          const hl=Math.hypot(hx,hy)||1; hx/=hl; hy/=hl;
+        }
+        en.x+=hx*en.velocidad*0.8*en.slowFactor*dt; en.y+=hy*en.velocidad*0.8*en.slowFactor*dt;
+      }
+      else if(en.iaT<=0){
+        en.iaT=5;
+        for(let i=0;i<2;i++)crearEnemigo('slimeVerde',en.x+(Math.random()*60-30),en.y+(Math.random()*60-30));
+        mundo.efectos.push({tipo:'aura',t:0,duracion:0.4,radioMax:56,color:'138,92,201',cx:en.x,cy:en.y});
+        sonido.aura();
+      }
+    }else{
+      /* persecución normal: intercepción predictiva + formación en anillo.
+         No apuntan a tu posición actual sino a la que vas a tener, y cada
+         uno tiene su propio ángulo alrededor tuyo — por eso correr en
+         círculos ya no los agrupa: cortan camino y te rodean en abanico. */
+      const pred=puntoInterceptado(en,j);
+      en.anguloFormacion+=dt*0.35*(en.rodeo||1);
+      const anilloX=pred.x+Math.cos(en.anguloFormacion)*(en.radio+j.radio+34);
+      const anilloY=pred.y+Math.sin(en.anguloFormacion)*(en.radio+j.radio+34);
+      const pesoAnillo=Math.max(0,Math.min(1,1-(dist-70)/180));
+      const tx=pred.x*(1-pesoAnillo)+anilloX*pesoAnillo;
+      const ty=pred.y*(1-pesoAnillo)+anilloY*pesoAnillo;
+      const tdx=tx-en.x, tdy=ty-en.y, tl=Math.hypot(tdx,tdy)||1;
+      en.x+=(tdx/tl)*en.velocidad*en.slowFactor*dt;
+      en.y+=(tdy/tl)*en.velocidad*en.slowFactor*dt;
+      en.animT+=dt*en.slowFactor; en.flip=dx<0;
+    }
+    if(dist<en.radio+j.radio && !jugadorInvulnerable() && !en.intangible){
+      danioAlJugador(en.danio);
+      if(en.veneno){ j.venenoTimer=3*(1-(j.resistenciaEstados||0)); j.venenoDps=en.veneno; sonido.aura(); }
+    }
+  }
 
-        document.getElementById('input').addEventListener('change', handleFile);
-        document.getElementById('btnClear').addEventListener('click', () => { 
-            document.getElementById('sucursalFilter').value = 'TODAS'; 
-            document.getElementById('motivoFilter').value = 'TODOS'; 
-            document.getElementById('observacionFilter').value = 'TODAS';
-            renderDashboard(); 
-        });
-        document.getElementById('btnDelete').addEventListener('click', () => { fullData = []; document.getElementById('dashboard').classList.add('hidden'); document.getElementById('controls').classList.add('hidden'); document.getElementById('btnClear').classList.add('hidden'); document.getElementById('btnDelete').classList.add('hidden'); });
-        document.getElementById('toggleViewBtn').addEventListener('click', () => { viewAll = !viewAll; renderDashboard(); });
-        document.getElementById('btnPdf').addEventListener('click', () => window.print());
-        document.getElementById('sucursalFilter').addEventListener('change', renderDashboard);
-        document.getElementById('motivoFilter').addEventListener('change', renderDashboard);
-        document.getElementById('observacionFilter').addEventListener('change', renderDashboard);
-    </script>
+  /* gemas */
+  for(const g of mundo.gemas){
+    const dx=j.x-g.x, dy=j.y-g.y, dist=Math.hypot(dx,dy)||1;
+    if(dist<j.magnetRadio){ g.x+=(dx/dist)*280*dt; g.y+=(dy/dist)*280*dt; }
+    if(dist<j.radio+6)g.recolectada=true;
+  }
+  const rec=mundo.gemas.filter(g=>g.recolectada).length;
+  if(rec>0)ganarXp(rec*CONFIG.curvas.valorGema(mundo.ciclo));
+  mundo.gemas=mundo.gemas.filter(g=>!g.recolectada);
+
+  /* botín (oro y, rarísimo, gemas legendarias): imán, recolección y guardado */
+  let recogioAlgo=false, recogioGema=false;
+  for(const b of mundo.botin){
+    const dx=j.x-b.x, dy=j.y-b.y, dist=Math.hypot(dx,dy)||1;
+    const radioIman=b.tipo==='gema'?j.magnetRadio*1.8:j.magnetRadio;  // la gema "quiere" ser encontrada
+    if(dist<radioIman){ b.x+=(dx/dist)*280*dt; b.y+=(dy/dist)*280*dt; }
+    if(dist<j.radio+7){
+      b.recolectado=true;
+      if(b.tipo==='gema'){
+        recogioGema=true; META.gemas=(META.gemas||0)+1;
+        chispas(b.x,b.y,'#c9a0ff',18,160);
+        mundo.efectos.push({tipo:'critAnillo',t:0,duracion:0.6,radioMax:50,color:'201,160,255',cx:b.x,cy:b.y});
+        mundo.aviso={texto:'✦ ¡GEMA LEGENDARIA! ✦',t:2.4};
+      }else{
+        recogioAlgo=true;
+        const cant=Math.round(2*factorRecursos());
+        META.oro+=cant;
+        chispas(b.x,b.y,'#ffd166',3,60);
+      }
+    }
+  }
+  if(recogioGema){ sonido.subirNivel(); sonido.subirNivel(); guardarMeta(); }
+  else if(recogioAlgo){ sonido.moneda(); guardarMeta(); }
+  mundo.botin=mundo.botin.filter(b=>!b.recolectado);
+
+  /* santuarios de curación — rarísimos, un golpe de suerte real */
+  mundo.proximaCuracionCheq-=dt;
+  if(mundo.proximaCuracionCheq<=0){
+    mundo.proximaCuracionCheq=CONFIG.curacion.intervaloChequeo;
+    if(mundo.curaciones.length===0 && Math.random()<CONFIG.curacion.probabilidad){
+      const ang=Math.random()*Math.PI*2;
+      const [dMin,dMax]=CONFIG.curacion.radioAparicion;
+      const dist=dMin+Math.random()*(dMax-dMin);
+      mundo.curaciones.push({x:j.x+Math.cos(ang)*dist,y:j.y+Math.sin(ang)*dist,t:0,vida:CONFIG.curacion.vidaSegundos});
+      sonido.aura();   // un tintineo apenas audible: una pista, no un anuncio
+    }
+  }
+  for(const c of mundo.curaciones)c.t+=dt;
+  for(const c of mundo.curaciones){
+    if(!c.tomado && Math.hypot(j.x-c.x,j.y-c.y)<j.radio+22){
+      c.tomado=true;
+      const cura=Math.round(j.hpMax*CONFIG.curacion.curaPct);
+      j.hp=Math.min(j.hpMax,j.hp+cura);
+      chispas(c.x,c.y,'#7dc46a',16,130);
+      sonido.subirNivel();
+      mundo.aviso={texto:`✦ +${cura} de vida — un golpe de suerte`,t:2.0};
+    }
+  }
+  mundo.curaciones=mundo.curaciones.filter(c=>!c.tomado && c.t<c.vida);
+
+  if(mundo.bioma==='mina'){       // en la mina, las mismas partículas ascienden como brasas
+    for(const h of mundo.hojas){
+      h.y-=h.v*0.7*dt; h.x+=Math.sin(mundo.tiempo*2+h.fase)*10*dt;
+      if(h.y<-10){h.y=innerHeight+10; h.x=Math.random()*innerWidth;}
+    }
+  }else if(mundo.bioma==='cementerio'){  // fuegos fatuos: flotan lento, sin caer ni subir
+    for(const h of mundo.hojas){
+      h.x+=Math.sin(mundo.tiempo*0.6+h.fase)*8*dt;
+      h.y+=Math.cos(mundo.tiempo*0.5+h.fase*1.3)*6*dt;
+      if(h.x<-10)h.x=innerWidth+8; if(h.x>innerWidth+10)h.x=-8;
+      if(h.y<-10)h.y=innerHeight+8; if(h.y>innerHeight+10)h.y=-8;
+    }
+  }else{
+    for(const h of mundo.hojas){
+      h.y+=h.v*dt; h.x+=Math.sin(mundo.tiempo*2+h.fase)*14*dt-8*dt;
+      if(h.y>innerHeight+10){h.y=-10; h.x=Math.random()*innerWidth;}
+      if(h.x<-10)h.x=innerWidth+8;
+    }
+  }
+  if(mundo.flashDanio>0)mundo.flashDanio-=dt;
+  if(mundo.aviso){ mundo.aviso.t-=dt; if(mundo.aviso.t<=0)mundo.aviso=null; }
+  mundo.efectos=mundo.efectos.filter(fx=>{fx.t+=dt; return fx.t<fx.duracion;});
+  mundo.numerosDanio=mundo.numerosDanio.filter(n=>{n.y-=28*dt;n.alpha-=dt*1.05;return n.alpha>0;});
+
+  actualizarHud();
+}
+
+function ganarXp(cant){
+  const j=mundo.jugador;
+  j.xp+=cant;
+  while(j.xp>=j.xpSiguiente){
+    j.xp-=j.xpSiguiente; j.nivel++;
+    j.xpSiguiente=CONFIG.curvas.xpParaNivel(j.nivel);
+    if(j.nivel%2===0){
+      abrirPantallaDeNivel();                 // cada 2 niveles: elección real
+    }else{
+      mundo.aviso={texto:`NIVEL ${j.nivel}`,t:1.1};   // el resto: progreso visible, sin interrumpir
+      sonido.subirNivel();
+    }
+  }
+}
+
+function actualizarHud(){
+  const j=mundo.jugador;
+  dom.txtNivel.textContent=j.nivel;
+  dom.barraHp.style.width=Math.max(0,j.hp/j.hpMax*100)+'%';
+  dom.barraXp.style.width=Math.min(100,j.xp/j.xpSiguiente*100)+'%';
+  dom.barraPoder.style.width=Math.min(100,(1-Math.max(0,j.especialTimer)/j.especial.cooldown)*100)+'%';
+  dom.barraDash.style.width=Math.min(100,(1-Math.max(0,j.dashCd)/j.dashCooldownMax)*100)+'%';
+  const s=Math.floor(mundo.tiempo);
+  dom.txtTiempo.textContent=`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  dom.txtKills.textContent=fmt(mundo.kills);
+  dom.txtCiclo.textContent=mundo.ciclo;
+  dom.txtOro.textContent=META.oro;
+  const ob=mundo.mundoDef.objetivo;
+  const nombreMapa=mundo.mundoDef.nombre;
+  if(mundo.estadoNivel==='oleadas'){
+    const meta=CONFIG.curvas.metaKills(mundo.ciclo);
+    dom.objetivo.innerHTML=`<span style="opacity:.7">${nombreMapa}</span> · ${ob.texto}: <b>${Math.min(mundo.killsCiclo,meta)}/${meta}</b>`;
+  }else if(mundo.estadoNivel==='cinematica'||mundo.estadoNivel==='jefe'){
+    dom.objetivo.innerHTML=`<b>¡Derrotá al Guardián!</b>`;
+  }
+}
+
+/* ---------------------------------------------------------------
+   9) DIBUJAR
+--------------------------------------------------------------- */
+function dibujar(){
+  const j=mundo.jugador;
+  let cx=lienzo.width/2, cy=lienzo.height/2;
+  /* sacudida de cámara */
+  if(mundo.shakeT>0){
+    const k=mundo.shakeMag*(mundo.shakeT/0.18);
+    cx+=(Math.random()-0.5)*k*2; cy+=(Math.random()-0.5)*k*2;
+  }
+  const wx=x=>x-j.x+cx, wy=y=>y-j.y+cy;
+  const t=mundo.tiempo;
+
+  const bioma=mundo.bioma;
+  const COLOR_SUELO={ bosque:'#3f6b3a', mina:'#232529', cementerio:'#262b30' };
+  const salGrilla={ bosque:9, mina:19, cementerio:29 };
+  const tonosGrilla={
+    bosque:['#37602f','#4f7f45'], mina:['#292c30','#2c2f34'], cementerio:['#232830','#2c3138']
+  };
+  ctx.fillStyle=COLOR_SUELO[bioma];
+  ctx.fillRect(0,0,lienzo.width,lienzo.height);
+  const T2=90;
+  const gx0=Math.floor((j.x-cx)/T2)-1, gx1=Math.floor((j.x+cx)/T2)+1;
+  const gy0=Math.floor((j.y-cy)/T2)-1, gy1=Math.floor((j.y+cy)/T2)+1;
+  for(let gx=gx0;gx<=gx1;gx++)for(let gy=gy0;gy<=gy1;gy++){
+    const r=hash(gx,gy,salGrilla[bioma]);
+    if(r>0.5){
+      const [c1,c2]=tonosGrilla[bioma];
+      ctx.fillStyle=r>0.8?c2:c1;
+      ctx.beginPath();
+      ctx.ellipse(wx(gx*T2+T2/2),wy(gy*T2+T2/2),T2*0.5,T2*0.36,r*3,0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  const margen=170;
+  const cgx0=Math.floor((j.x-cx-margen)/CELDA), cgx1=Math.floor((j.x+cx+margen)/CELDA);
+  const cgy0=Math.floor((j.y-cy-margen)/CELDA), cgy1=Math.floor((j.y+cy+margen)/CELDA);
+  const altos=[];
+  for(let gx=cgx0;gx<=cgx1;gx++)for(let gy=cgy0;gy<=cgy1;gy++){
+    const d=doodadDeCelda(gx,gy,bioma);
+    if(!d)continue;
+    const sx=wx(d.x), sy=wy(d.y);
+    if(bioma==='mina'){
+      if(d.t==='grava')DOODAD_MINA.grava(sx,sy);
+      else if(d.t==='lava')DOODAD_MINA.lava(sx,sy);
+      else altos.push({y:d.y,dibujar:()=>{
+        if(d.t==='cristal')DOODAD_MINA.cristal(sx,sy,d.v);
+        else if(d.t==='cristalGigante')DOODAD_MINA.cristalGigante(sx,sy,d.v);
+        else if(d.t==='rocaGrande')DOODAD_MINA.rocaGrande(sx,sy,d.v);
+        else if(d.t==='estalactita')DOODAD_MINA.estalactita(sx,sy,d.v);
+      }});
+    }else if(bioma==='cementerio'){
+      if(d.t==='pastoSeco')DOODAD_CEMENTERIO.pastoSeco(sx,sy);
+      else if(d.t==='fuegoFatuo')DOODAD_CEMENTERIO.fuegoFatuo(sx,sy,t);
+      else altos.push({y:d.y,dibujar:()=>{
+        if(d.t==='lapida')DOODAD_CEMENTERIO.lapida(sx,sy,d.v);
+        else if(d.t==='arbolMuerto')DOODAD_CEMENTERIO.arbolMuerto(sx,sy,d.v);
+        else if(d.t==='cerco')DOODAD_CEMENTERIO.cerco(sx,sy,d.v);
+        else if(d.t==='cripta')DOODAD_CEMENTERIO.cripta(sx,sy,d.v);
+      }});
+    }else{
+      if(d.t==='pasto')DOODAD.pasto(sx,sy);
+      else if(d.t==='flor')DOODAD.flor(sx,sy,d.v);
+      else if(d.t==='laguna')DOODAD.laguna(sx,sy,t);
+      else altos.push({y:d.y,dibujar:()=>{
+        if(d.t==='piedra')DOODAD.piedra(sx,sy,d.v);
+        else if(d.t==='arbusto')DOODAD.arbusto(sx,sy);
+        else if(d.t==='hongo')DOODAD.hongo(sx,sy);
+        else if(d.t==='tronco')DOODAD.tronco(sx,sy,d.v);
+        else if(d.t==='arbol')DOODAD.arbol(sx,sy,d.v);
+        else if(d.t==='pino')DOODAD.pino(sx,sy);
+        else if(d.t==='ruina')DOODAD.ruina(sx,sy,d.v);
+        else if(d.t==='altar')DOODAD.altar(sx,sy,t);
+      }});
+    }
+  }
+
+  /* peligros telegrafiados: círculo que se llena — MOVETE */
+  for(const pe of mundo.peligros){
+    const p=pe.t/pe.dur;
+    const x=wx(pe.x), y=wy(pe.y);
+    ctx.strokeStyle='rgba(255,93,93,.8)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(x,y,pe.radio,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle='rgba(255,93,93,.18)';
+    ctx.beginPath(); ctx.arc(x,y,pe.radio*p,0,Math.PI*2); ctx.fill();
+  }
+
+  for(const z of mundo.zonas){
+    ctx.strokeStyle='rgba(125,220,106,.8)'; ctx.lineWidth=2; ctx.setLineDash([8,6]);
+    ctx.beginPath(); ctx.arc(wx(z.x),wy(z.y),z.radio,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle='rgba(201,232,160,.7)';
+    for(let i=0;i<6;i++){
+      const a=Math.random()*Math.PI*2, r=Math.random()*z.radio;
+      const fx=wx(z.x)+Math.cos(a)*r, fy=wy(z.y)+Math.sin(a)*r;
+      ctx.beginPath(); ctx.moveTo(fx,fy-18); ctx.lineTo(fx,fy); ctx.stroke();
+    }
+  }
+
+  for(const g of mundo.gemas){
+    ctx.fillStyle='#ffd166';
+    ctx.beginPath(); ctx.arc(wx(g.x),wy(g.y),5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#fff2c0'; ctx.fillRect(wx(g.x)-1,wy(g.y)-3,2,2);
+  }
+  for(const b of mundo.botin){
+    const x=wx(b.x), y=wy(b.y);
+    if(b.tipo==='oro'){
+      ctx.fillStyle='#b58a2a'; ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#ffd166'; ctx.beginPath(); ctx.arc(x-1,y-1,4.5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#fff2c0'; ctx.fillRect(x-1,y-4,2,3);
+    }else if(b.tipo==='gema'){        // gema legendaria: brillo inconfundible, gira sola
+      const s=Math.sin(t*3)*2;
+      ctx.fillStyle=`rgba(201,160,255,${0.4+Math.sin(t*4)*0.2})`;
+      ctx.beginPath(); ctx.arc(x,y,14+s,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#c9a0ff';
+      ctx.beginPath(); ctx.moveTo(x,y-8); ctx.lineTo(x+6,y); ctx.lineTo(x,y+8); ctx.lineTo(x-6,y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='#e8d8ff'; ctx.beginPath(); ctx.moveTo(x,y-4); ctx.lineTo(x+3,y); ctx.lineTo(x,y+4); ctx.lineTo(x-3,y); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  for(const c of mundo.curaciones){    // santuario de curación: raro, verde, imposible de confundir
+    const x=wx(c.x), y=wy(c.y);
+    const flote=Math.sin(t*2)*4;
+    const apagandose=c.vida-c.t<4 ? (c.vida-c.t)/4 : 1;   // parpadea antes de desaparecer sin usarse
+    ctx.globalAlpha=(0.5+Math.sin(t*3)*0.2)*apagandose;
+    ctx.fillStyle='rgba(125,196,106,.3)';
+    ctx.beginPath(); ctx.arc(x,y-10+flote,22,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=apagandose;
+    ctx.fillStyle='#7dc46a';
+    ctx.beginPath(); ctx.ellipse(x,y-10+flote,8,11,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#c9e8a0';
+    ctx.fillRect(x-1.5,y-18+flote,3,14); ctx.fillRect(x-6,y-13+flote,12,3);
+    ctx.globalAlpha=1;
+    dibujarSombra(x,y,14,0.2);
+  }
+
+  for(const p of mundo.particulas){
+    ctx.globalAlpha=Math.min(1,p.vida*2.5);
+    ctx.fillStyle=p.color;
+    ctx.fillRect(wx(p.x)-2,wy(p.y)-2,4,4);
+  }
+  ctx.globalAlpha=1;
+
+  /* fantasmas del dash */
+  for(const f of mundo.fantasmas){
+    ctx.globalAlpha=Math.max(0,f.alpha);
+    dibujarSprite(mundo.idHeroe,f.frame,wx(f.x),wy(f.y)+j.radio,j.radio*2.8,f.flip);
+  }
+  ctx.globalAlpha=1;
+
+  /* enemigos comunes */
+  for(const en of mundo.enemigos){
+    altos.push({y:en.y+en.radio,dibujar:()=>{
+      const x=wx(en.x), pies=wy(en.y)+en.radio;
+      const vuela=en.tipo==='murcielago'||en.tipo==='fantasma';
+      const bob=vuela?Math.sin(t*9+en.animT)*5-14:0;
+      const altura=en.radio*(vuela?2.2:2.5);
+      const frame=en.stunTimer>0?0:Math.floor(en.animT*(vuela?10:6))%2;
+      if(en.elite){
+        ctx.strokeStyle=`rgba(255,209,102,${0.55+Math.sin(t*6)*0.25})`; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.arc(x,pies+bob-altura/2,en.radio+9,0,Math.PI*2); ctx.stroke();
+      }
+      dibujarSombra(x,pies,en.radio*(vuela?0.55:0.9),vuela?0.18:0.28);
+      ctx.globalAlpha=en.intangible?0.35:1;         // translúcido = intangible, se ve a simple vista
+      dibujarSprite(en.tipo,frame,x,pies+bob,altura,en.flip);
+      ctx.globalAlpha=1;
+      if(en.flashTimer>0){
+        ctx.fillStyle='rgba(255,255,255,.55)';
+        ctx.beginPath(); ctx.arc(x,pies+bob-altura/2,en.radio,0,Math.PI*2); ctx.fill();
+      }
+      if(en.stunTimer>0){
+        ctx.fillStyle='#ffe7a3'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+        ctx.fillText('✶ ✶',x,pies+bob-altura-6);
+      }
+      const pct=en.hp/en.hpMax;
+      const wB=en.elite?42:28;
+      ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(x-wB/2,pies+bob-altura-5,wB,3);
+      ctx.fillStyle=en.elite?'#ffd166':'#ff5d5d'; ctx.fillRect(x-wB/2,pies+bob-altura-5,wB*Math.max(0,pct),3);
+    }});
+  }
+
+  /* el jefe */
+  if(mundo.jefe&&mundo.jefe.hp>0){
+    const jf=mundo.jefe;
+    altos.push({y:jf.y+jf.radio,dibujar:()=>{
+      const x=wx(jf.x), pies=wy(jf.y)+jf.radio;
+      const altura=jf.radio*jf.altura;
+      const frame=Math.floor(jf.animT*4)%2;
+      dibujarSombra(x,pies,jf.radio*1.05,0.32);
+      if(jf.vulnerable>0){
+        ctx.strokeStyle=`rgba(255,209,102,${0.5+Math.sin(t*8)*0.3})`; ctx.lineWidth=4;
+        ctx.beginPath(); ctx.arc(x,pies-altura/2,jf.radio+14,0,Math.PI*2); ctx.stroke();
+      }
+      dibujarSprite(jf.spriteId,frame,x,pies,altura,jf.flip);
+      if(jf.flashTimer>0){
+        ctx.fillStyle='rgba(255,255,255,.4)';
+        ctx.beginPath(); ctx.arc(x,pies-altura/2,jf.radio,0,Math.PI*2); ctx.fill();
+      }
+    }});
+  }
+
+  /* héroe */
+  altos.push({y:j.y+j.radio,dibujar:()=>{
+    const parpadea=j.invulnTimer>0 && Math.floor(j.invulnTimer*20)%2===0;
+    const pies=cy+j.radio, alturaJ=j.radio*2.8;
+    const frameJ=Math.floor(j.animT*7)%2;
+    dibujarSombra(cx,pies,j.radio);
+    if(mundo.idHeroe==='paladin'){
+      ctx.strokeStyle=`rgba(255,224,138,${0.25+Math.sin(t*3)*0.1})`; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(cx,cy,j.radio+8+Math.sin(t*3)*2,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.globalAlpha=parpadea?0.45:1;
+    dibujarSprite(mundo.idHeroe,frameJ,cx,pies,alturaJ,j.flip,j.animPunch);
+    ctx.globalAlpha=1;
+    if(mundo.idHeroe==='mago'){
+      for(let i=0;i<3;i++){
+        const a=t*2.4+i*(Math.PI*2/3);
+        ctx.fillStyle=i%2?'#4fd8ff':'#bdefff';
+        ctx.fillRect(cx+Math.cos(a)*(j.radio+10)-1.5, cy-6+Math.sin(a)*(j.radio+10)*0.5-1.5,3,3);
+      }
+    }
+  }});
+
+  altos.sort((a,b)=>a.y-b.y);
+  for(const item of altos)item.dibujar();
+
+  /* proyectiles */
+  for(const p of mundo.proyectiles){
+    const x=wx(p.x), y=wy(p.y);
+    if(p.tipo==='arcanoLegendario'){
+      ctx.fillStyle='rgba(201,160,255,.4)'; ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#e8d8ff'; ctx.beginPath(); ctx.arc(x,y,4.5,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle=`rgba(201,160,255,${0.5+Math.sin(t*10)*0.3})`; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(x,y,9,0,Math.PI*2); ctx.stroke();
+    }else if(p.tipo==='arcano'){
+      ctx.fillStyle='rgba(79,216,255,.35)'; ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#bdefff'; ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fill();
+    }else{
+      const a=Math.atan2(p.vy,p.vx);
+      ctx.strokeStyle='rgba(201,232,160,.5)'; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(x-Math.cos(a)*12,y-Math.sin(a)*12); ctx.lineTo(x,y); ctx.stroke();
+      ctx.strokeStyle='#eafccb'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(x-Math.cos(a)*10,y-Math.sin(a)*10); ctx.lineTo(x,y); ctx.stroke();
+    }
+  }
+  for(const p of mundo.proyectilesEnemigos){
+    const x=wx(p.x), y=wy(p.y);
+    if(p.tipo==='bolt'){
+      ctx.fillStyle='rgba(138,92,201,.4)'; ctx.beginPath(); ctx.arc(x,y,p.radio+3,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#c9a0ff'; ctx.beginPath(); ctx.arc(x,y,p.radio*0.6,0,Math.PI*2); ctx.fill();
+    }else{
+      dibujarSombra(x,y+8,6,0.2);
+      ctx.fillStyle='#5f646e'; ctx.beginPath(); ctx.arc(x,y,p.radio,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#8a8f98'; ctx.beginPath(); ctx.arc(x-3,y-3,p.radio*0.4,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  for(const o of mundo.ondas){
+    ctx.strokeStyle='rgba(232,232,240,.9)'; ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.arc(wx(o.x),wy(o.y),o.ancho/2,o.ang-1.2+Math.PI/2,o.ang+1.2+Math.PI/2);
+    ctx.stroke();
+  }
+
+  for(const fx of mundo.efectos){
+    const prog=fx.t/fx.duracion;
+    const ex=fx.cx!==undefined?wx(fx.cx):cx, ey=fx.cy!==undefined?wy(fx.cy):cy;
+    if(fx.tipo==='critAnillo'){
+      const r=fx.radioMax*(0.3+prog*0.7);
+      ctx.strokeStyle=`rgba(${fx.color},${1-prog})`; ctx.lineWidth=3*(1-prog)+1;
+      ctx.beginPath(); ctx.arc(ex,ey,r,0,Math.PI*2); ctx.stroke();
+    }else if(fx.tipo==='lineaCarga'){
+      ctx.strokeStyle=`rgba(255,93,93,${0.7*(1-prog)})`; ctx.lineWidth=4;
+      ctx.beginPath(); ctx.moveTo(ex,ey);
+      ctx.lineTo(ex+Math.cos(fx.ang)*fx.largo, ey+Math.sin(fx.ang)*fx.largo);
+      ctx.stroke();
+    }else if(fx.tipo==='aura'||fx.tipo==='sagrado'){
+      const r=fx.radioMax*(0.35+prog*0.65);
+      ctx.strokeStyle=`rgba(${fx.color},${1-prog})`; ctx.lineWidth=6*(1-prog)+1;
+      ctx.beginPath(); ctx.arc(ex,ey,r,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle=`rgba(${fx.color},${0.15*(1-prog)})`;
+      ctx.beginPath(); ctx.arc(ex,ey,r,0,Math.PI*2); ctx.fill();
+      if(fx.tipo==='sagrado'){
+        ctx.fillStyle=`rgba(255,242,192,${0.5*(1-prog)})`;
+        for(let i=0;i<6;i++){
+          const a=i/6*Math.PI*2+prog;
+          ctx.fillRect(ex+Math.cos(a)*r*0.7-2, ey+Math.sin(a)*r*0.7-26*(1-prog)-8,4,26*(1-prog)+8);
+        }
+      }
+    }else if(fx.tipo==='barrido'){
+      ctx.strokeStyle=`rgba(${fx.color},${(1-prog)*0.9})`; ctx.lineWidth=5*(1-prog)+1;
+      ctx.beginPath();
+      ctx.arc(cx,cy,fx.rango*0.85,fx.ang-fx.mitadCono,fx.ang+fx.mitadCono);
+      ctx.stroke();
+    }
+  }
+
+  ctx.font='bold 14px system-ui, sans-serif'; ctx.textAlign='center';
+  for(const n of mundo.numerosDanio){
+    if(n.crit){ ctx.font='bold 18px system-ui, sans-serif'; ctx.fillStyle=`rgba(255,209,102,${n.alpha})`; }
+    else { ctx.font='bold 14px system-ui, sans-serif'; ctx.fillStyle=`rgba(255,255,255,${n.alpha})`; }
+    ctx.fillText(n.texto,wx(n.x),wy(n.y));
+  }
+
+  /* ambiente — completamente distinto entre los tres mapas: sol entre
+     árboles / resplandor de brasas / niebla verdosa fúnebre */
+  const RAYO_COLOR={bosque:'255,220,150', mina:'216,90,50', cementerio:'110,150,120'};
+  for(let i=0;i<3;i++){
+    const bx=lienzo.width*(0.15+i*0.32);
+    const base=RAYO_COLOR[bioma];
+    const alfaRayo=bioma==='cementerio'?0.035:(bioma==='mina'?0.04:0.05);
+    ctx.fillStyle=`rgba(${base},${alfaRayo+Math.sin(t*0.8+i*2)*0.02})`;
+    ctx.beginPath();
+    ctx.moveTo(bx,-20); ctx.lineTo(bx+120,-20);
+    ctx.lineTo(bx+80,lienzo.height+20); ctx.lineTo(bx-40,lienzo.height+20);
+    ctx.closePath(); ctx.fill();
+  }
+  const NIEBLA_COLOR={bosque:'220,230,220', mina:'40,40,45', cementerio:'70,90,80'};
+  for(let i=0;i<2;i++){
+    const nx=lienzo.width*(0.3+i*0.45)+Math.sin(t*0.25+i*3)*60;
+    const ny=lienzo.height*(0.55+i*0.2)+Math.cos(t*0.2+i)*30;
+    const g=ctx.createRadialGradient(nx,ny,0,nx,ny,260);
+    const colorNiebla=NIEBLA_COLOR[bioma];
+    const alfaNiebla=bioma==='cementerio'?0.11:0.07;
+    g.addColorStop(0,`rgba(${colorNiebla},${alfaNiebla})`); g.addColorStop(1,`rgba(${colorNiebla},0)`);
+    ctx.fillStyle=g; ctx.fillRect(nx-260,ny-260,520,520);
+  }
+  for(const h of mundo.hojas){
+    if(bioma==='mina'){
+      const alpha=0.55+Math.sin(t*4+h.fase)*0.25;
+      ctx.fillStyle=`rgba(255,140,60,${alpha})`;
+      ctx.beginPath(); ctx.arc(h.x,h.y,2,0,Math.PI*2); ctx.fill();
+    }else if(bioma==='cementerio'){
+      const alpha=0.45+Math.sin(t*3+h.fase)*0.25;
+      ctx.fillStyle=`rgba(125,196,106,${alpha})`;
+      ctx.beginPath(); ctx.arc(h.x,h.y,2.4,0,Math.PI*2); ctx.fill();
+    }else{
+      ctx.fillStyle=h.color;
+      ctx.save(); ctx.translate(h.x,h.y);
+      ctx.rotate(Math.sin(t*3+h.fase)*0.8);
+      ctx.fillRect(-3,-2,6,4);
+      ctx.restore();
+    }
+  }
+  const TINTE_COLOR={bosque:'rgba(255,205,130,.05)', mina:'rgba(80,40,30,.06)', cementerio:'rgba(60,80,70,.07)'};
+  ctx.fillStyle=TINTE_COLOR[bioma];
+  ctx.fillRect(0,0,lienzo.width,lienzo.height);
+  if(mundo.flashDanio>0){
+    ctx.fillStyle=`rgba(200,40,30,${mundo.flashDanio*0.6})`;
+    ctx.fillRect(0,0,lienzo.width,lienzo.height);
+  }
+  if(mundo.flashBlanco>0){
+    ctx.fillStyle=`rgba(255,248,230,${Math.min(0.85,mundo.flashBlanco*1.6)})`;
+    ctx.fillRect(0,0,lienzo.width,lienzo.height);
+  }
+  if(mundo.aviso){
+    const a=Math.min(1,mundo.aviso.t/0.4);
+    ctx.textAlign='center'; ctx.font='bold 30px system-ui, sans-serif';
+    ctx.fillStyle=`rgba(255,93,93,${a})`;
+    ctx.fillText(mundo.aviso.texto,lienzo.width/2,110);
+  }
+  const vg=ctx.createRadialGradient(lienzo.width/2,lienzo.height/2,Math.min(cx,cy)*0.6,lienzo.width/2,lienzo.height/2,Math.max(cx,cy)*1.15);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(10,16,8,.45)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,lienzo.width,lienzo.height);
+
+  /* brújula del Guardián: solo existe una vez que el jefe apareció.
+     Si está fuera de pantalla, una flecha en el borde señala hacia
+     dónde ir — el desafío es vencerlo, no perderlo de vista. */
+  if(mundo.jefe && mundo.jefe.hp>0 && mundo.estadoNivel==='jefe'){
+    const bxp=wx(mundo.jefe.x), byp=wy(mundo.jefe.y);
+    const margen=44;
+    const dentro = bxp>margen && bxp<lienzo.width-margen && byp>margen && byp<lienzo.height-margen;
+    if(!dentro){
+      const ang=Math.atan2(mundo.jefe.y-j.y, mundo.jefe.x-j.x);
+      const halfW=lienzo.width/2-margen, halfH=lienzo.height/2-margen;
+      const dx=Math.cos(ang), dy=Math.sin(ang);
+      const escala=Math.min(dx!==0?Math.abs(halfW/dx):Infinity, dy!==0?Math.abs(halfH/dy):Infinity);
+      const px=lienzo.width/2+dx*escala, py=lienzo.height/2+dy*escala;
+      const pulso=0.7+Math.sin(t*5)*0.3;
+      ctx.save();
+      ctx.translate(px,py); ctx.rotate(ang);
+      ctx.fillStyle=`rgba(255,93,93,${pulso})`;
+      ctx.beginPath(); ctx.moveTo(16,0); ctx.lineTo(-10,-9); ctx.lineTo(-10,9); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle='rgba(20,16,8,.6)'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /* cinemática: bandas negras + nombre del jefe */
+  if(mundo.estadoNivel==='cinematica'){
+    const p=Math.min(1,mundo.cineT/0.5);
+    const alto=64*p;
+    ctx.fillStyle='#0a0e07';
+    ctx.fillRect(0,0,lienzo.width,alto);
+    ctx.fillRect(0,lienzo.height-alto,lienzo.width,alto);
+    if(mundo.cineT>0.5){
+      const a=Math.min(1,(mundo.cineT-0.5)/0.4);
+      ctx.textAlign='center';
+      ctx.font='bold 26px system-ui, sans-serif';
+      ctx.fillStyle=`rgba(255,209,102,${a})`;
+      ctx.fillText(mundo.jefe.nombre,lienzo.width/2,lienzo.height/2-40);
+      ctx.font='14px system-ui, sans-serif';
+      ctx.fillStyle=`rgba(232,220,192,${a})`;
+      ctx.fillText(mundo.jefe.titulo+(mundo.jefe.frase?' — '+mundo.jefe.frase:''),lienzo.width/2,lienzo.height/2-14);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------
+   10) CICLO DE VIDA
+--------------------------------------------------------------- */
+let idAnimacion=null;
+function cuadro(ts){
+  if(!mundo.corriendo)return;
+  if(!mundo.ultimoTimestamp)mundo.ultimoTimestamp=ts;
+  let dt=(ts-mundo.ultimoTimestamp)/1000;
+  mundo.ultimoTimestamp=ts;
+  dt=Math.min(dt,0.05);
+  if(mundo.hitStop>0){ mundo.hitStop-=dt; dt=0; }      // congelamiento de impacto
+  if(mundo.shakeT>0)mundo.shakeT-=dt||0.016;
+  if(mundo.flashBlanco>0)mundo.flashBlanco-=(dt||0.016);
+  if(!mundo.pausado&&dt>0)actualizar(dt);
+  dibujar();
+  idAnimacion=requestAnimationFrame(cuadro);
+}
+
+function iniciarPartida(idHeroe,cargado){
+  mundo=estadoInicial(idHeroe, cargado?cargado.ciclo:1);
+  if(cargado){        // retomar: se restaura el héroe y los contadores;
+    mundo.tiempo=cargado.tiempo; mundo.kills=cargado.kills;   // los enemigos reaparecen solos
+    mundo.killsCiclo=Math.min(cargado.killsCiclo,CONFIG.curvas.metaKills(cargado.ciclo)-1);
+    mundo.ciclo=cargado.ciclo; mundo.intervaloActual=cargado.intervaloActual;
+    Object.assign(mundo.jugador,cargado.jugador);
+  }
+  mundo.corriendo=true;
+  dom.txtHeroe.textContent=REGISTRO.heroes[idHeroe].nombre.toUpperCase();
+  dom.jefeUi.style.display='none';
+  ocultarPantallas();
+  actualizarHud();
+  if(idAnimacion)cancelAnimationFrame(idAnimacion);
+  idAnimacion=requestAnimationFrame(cuadro);
+}
+
+function abrirPantallaDeNivel(){
+  mundo.pausado=true;
+  dom.contenedorCartas.innerHTML='';
+  const j=mundo.jugador;
+  j.mejoraPicks=j.mejoraPicks||{}; j.estiloPicks=j.estiloPicks||{};
+  const disponibles=REGISTRO.mejoras.filter(m=>(j.mejoraPicks[m.id]||0)<MAX_PICKS_POR_MEJORA);
+  if(disponibles.length===0){ mundo.pausado=false; return; }  // build al tope: seguís sin interrupción
+  muestrearMejoras(disponibles,j,3).forEach(m=>{
+    const c=document.createElement('div');
+    c.className='carta';
+    const usos=j.mejoraPicks[m.id]||0;
+    const est=m.estilo?ESTILO[m.estilo]:null;
+    if(est)c.style.borderColor=est.color;
+    c.innerHTML=`${est?`<div class="rol" style="color:${est.color}">${est.label}</div>`:''}
+                 <div class="icono">${m.icono}</div>
+                 <div class="titulo-carta">${m.titulo}${usos>0?` <span style="opacity:.6">(${usos}/${MAX_PICKS_POR_MEJORA})</span>`:''}</div>
+                 <div class="desc-carta">${m.desc}</div>`;
+    c.addEventListener('click',()=>{
+      m.aplicar(j);
+      j.mejoraPicks[m.id]=(j.mejoraPicks[m.id]||0)+1;
+      if(m.estilo)j.estiloPicks[m.estilo]=(j.estiloPicks[m.estilo]||0)+1;
+      sonido.subirNivel();
+      dom.pantallaNivel.classList.add('oculto');
+      mundo.pausado=false;
+    });
+    dom.contenedorCartas.appendChild(c);
+  });
+  dom.pantallaNivel.classList.remove('oculto');
+}
+
+function victoria(){
+  /* Hito de ciclo: el juego NO termina — se cobra, se respira, y sigue */
+  mundo.pausado=true;
+  const cicloSuperado=mundo.ciclo;
+  const oroGanado=Math.round(CONFIG.curvas.oroJefe(cicloSuperado)*factorRecursos());
+  META.oro+=oroGanado;
+  const gemasGanadas=1+Math.floor(cicloSuperado/3);   // los jefes SIEMPRE dan gemas — es la única fuente garantizada
+  META.gemas=(META.gemas||0)+gemasGanadas;
+  /* COFRE LEGENDARIO: una reliquia única al azar de las que faltan */
+  const faltantes=POOL_RELIQUIAS.filter(r=>!META.reliquias.includes(r));
+  const relId=faltantes.length?faltantes[Math.floor(Math.random()*faltantes.length)]:null;
+  const nuevaReliquia=!!relId;
+  const oroCofre=relId?0:Math.round(60*cicloSuperado*factorRecursos());
+  if(nuevaReliquia){ META.reliquias.push(relId); REGISTRO.reliquias[relId].aplicar(mundo.jugador); }
+  else META.oro+=oroCofre;
+  guardarMeta();
+  const j=mundo.jugador;
+  j.hp=Math.min(j.hpMax, j.hp+j.hpMax*0.4);      // respiro: curación parcial
+  $('victoria-titulo').textContent=`CICLO ${cicloSuperado} SUPERADO`;
+  dom.listaRecompensas.innerHTML='';
+  const filas=[
+    {ico:'🪙',txt:`+${fmt(oroGanado)} de oro (total: ${fmt(META.oro)})`},
+    {ico:'✦',txt:`+${gemasGanadas} gema${gemasGanadas>1?'s':''} legendaria${gemasGanadas>1?'s':''} (total: ${META.gemas})`},
+    nuevaReliquia?{ico:'🎁',txt:`COFRE LEGENDARIO: ${RAREZA[REGISTRO.reliquias[relId].rareza].label} ${REGISTRO.reliquias[relId].icono} ${REGISTRO.reliquias[relId].nombre} — ${REGISTRO.reliquias[relId].desc}`}
+                 :{ico:'🎁',txt:`COFRE LEGENDARIO: +${fmt(oroCofre)} de oro (ya poseés todas las reliquias)`},
+    {ico:'💚',txt:'Curación del 40% de tu vida máxima'},
+  ].filter(Boolean);
+  for(const f of filas){
+    const div=document.createElement('div');
+    div.className='recompensa';
+    div.innerHTML=`<span class="ico">${f.ico}</span><span>${f.txt}</span>`;
+    dom.listaRecompensas.appendChild(div);
+  }
+  $('victoria-aviso').textContent=`Todo se endurece: el Ciclo ${cicloSuperado+1} trae enemigos más fuertes, más veloces… y un Guardián todavía peor.`;
+  setTimeout(()=>{ dom.pantallaVictoria.classList.remove('oculto'); },600);
+}
+function reanudarTrasCiclo(){
+  dom.pantallaVictoria.classList.add('oculto');
+  mundo.ciclo++; mundo.killsCiclo=0;
+  const biomaNuevo=biomaParaCiclo(mundo.ciclo);
+  const cambioDeMapa=biomaNuevo!==mundo.bioma;
+  mundo.bioma=biomaNuevo;
+  mundo.mundoDef=mundoParaCiclo(mundo.ciclo);
+  mundo.jefe=null; dom.jefeUi.style.display='none';
+  mundo.estadoNivel='oleadas';
+  const O=mundo.mundoDef.oleadas;
+  mundo.intervaloActual=Math.max(O.intervaloMinimo, O.intervaloInicial*CONFIG.curvas.presionOleadas(mundo.ciclo));
+  mundo.proximaAparicion=0.8;
+  mundo.pausado=false;
+  if(cambioDeMapa){
+    mundo.enemigos=[]; mundo.proyectiles=[]; mundo.proyectilesEnemigos=[]; mundo.peligros=[];
+    mundo.aviso={texto: mundo.bioma==='mina' ? '¡ENTRÁS A LA MINA PROFUNDA!' : '¡VOLVÉS AL BOSQUE!', t:2.6};
+  }
+  guardarRun();
+}
+
+function terminarPartida(){
+  mundo.corriendo=false;
+  sonido.muerte(); sacudir(10,0.4);
+  borrarRun();                                    // la partida infinita terminó
+  const j=mundo.jugador;
+  const esRecord=j.nivel>(META.recordNivel||0);
+  if(esRecord){
+    META.recordNivel=j.nivel; META.recordTiempo=Math.floor(mundo.tiempo);
+    META.recordCiclo=mundo.ciclo; guardarMeta();
+  }
+  dom.tiempoFinal.textContent=fmtTiempo(mundo.tiempo);
+  dom.killsFinal.textContent=fmt(mundo.kills);
+  dom.nivelFinal.textContent=j.nivel;
+  dom.cicloFinal.textContent=mundo.ciclo;
+  dom.recordFinal.textContent=esRecord
+    ? '★ ¡NUEVO RÉCORD EN ESTE DISPOSITIVO!'
+    : `Récord del dispositivo: Nivel ${META.recordNivel||0} (${fmtTiempo(META.recordTiempo||0)})`;
+  dom.btnCopiar.onclick=()=>{
+    const txt=`⚔️ VIGILIA — Llegué al NIVEL ${j.nivel} (ciclo ${mundo.ciclo}) en ${fmtTiempo(mundo.tiempo)} con ${fmt(mundo.kills)} bajas. ¿Hasta dónde llegás vos?`;
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(()=>{ dom.btnCopiar.textContent='✅ ¡COPIADO!'; });
+    }else{ prompt('Copiá tu resultado:',txt); }
+  };
+  setTimeout(()=>{ ocultarPantallas(); dom.pantallaFin.classList.remove('oculto'); },300);
+}
+
+function ocultarPantallas(){
+  dom.pantallaTitulo.classList.add('oculto');
+  dom.pantallaNivel.classList.add('oculto');
+  dom.pantallaFin.classList.add('oculto');
+  dom.pantallaVictoria.classList.add('oculto');
+  dom.pantallaMejoras.classList.add('oculto');
+}
+function volverAlTitulo(){
+  ocultarPantallas();
+  pintarMetaInfo();
+  dom.pantallaTitulo.classList.remove('oculto');
+}
+function pintarMetaInfo(){
+  const rel=META.reliquias.map(r=>REGISTRO.reliquias[r]?REGISTRO.reliquias[r].icono+' '+REGISTRO.reliquias[r].nombre:'').join(' · ');
+  const record=META.recordNivel?` · ★ Récord: <b style="color:#ffd166">Nv ${META.recordNivel}</b> (${fmtTiempo(META.recordTiempo||0)})`:'';
+  dom.metaInfo.innerHTML=`🪙 Oro: <b style="color:#ffd166">${fmt(META.oro)}</b> · ✦ Gemas: <b style="color:#c9a0ff">${META.gemas||0}</b>${record}${rel?('<br>Reliquias: '+rel):''}`;
+  pintarContinuar();
+}
+function pintarContinuar(){
+  const run=cargarRun();
+  dom.contRun.innerHTML='';
+  if(!run)return;
+  const b=document.createElement('button');
+  b.className='boton';
+  b.style.background='#b39aff'; b.style.boxShadow='0 5px 0 #6a4fd0';
+  b.textContent=`▶ CONTINUAR — Nv ${run.jugador.nivel} · Ciclo ${run.ciclo} · ${fmtTiempo(run.tiempo)}`;
+  b.addEventListener('click',()=>{ sonido.iniciar(); heroeElegidoId=run.idHeroe; iniciarPartida(run.idHeroe,run); });
+  dom.contRun.appendChild(b);
+}
+
+/* cartas de héroes */
+for(const [id,H] of Object.entries(REGISTRO.heroes)){
+  const c=document.createElement('div');
+  c.className='carta';
+  c.innerHTML=`<canvas class="retrato" width="60" height="66" style="image-rendering:pixelated"></canvas>
+               <div class="rol">${H.rol}</div>
+               <div class="titulo-carta">${H.nombre}</div>
+               <div class="desc-carta">${H.basico.descripcion}.<br><b style="color:#b39aff">Especial:</b> ${H.especial.descripcion}.</div>`;
+  c.addEventListener('click',()=>{ sonido.iniciar(); heroeElegidoId=id; borrarRun(); iniciarPartida(id); });
+  dom.cartasHeroes.appendChild(c);
+  const retrato=c.querySelector('.retrato');
+  const rctx=retrato.getContext('2d');
+  let f=0;
+  const pintar=()=>{
+    rctx.clearRect(0,0,60,66);
+    const img=SPRITES[id][f%SPRITES[id].length];
+    const esc=Math.floor(58/img.height)||1;
+    const w=img.width*esc, h=img.height*esc;
+    rctx.imageSmoothingEnabled=false;
+    rctx.drawImage(img,(60-w)/2,(66-h)/2,w,h);
+    f++;
+  };
+  pintar(); setInterval(pintar,450);
+}
+
+/* ---- MEJORAS PERMANENTES: jugar → recursos → mejorar → jugar ---- */
+function pintarMejoras(){
+  dom.mejorasRecursos.innerHTML=`🪙 <b style="color:#ffd166">${fmt(META.oro)}</b> oro · ✦ <b style="color:#c9a0ff">${META.gemas||0}</b> gemas legendarias`;
+  dom.listaPermanentes.innerHTML='';
+  for(const [id,E] of Object.entries(REGISTRO.permanentes)){
+    const nivel=nivelPerm(id);
+    const alMax=nivel>=E.max;
+    const costo=costoPermanente(nivel+1);
+    const alcanza=META.oro>=costo.oro;
+    const c=document.createElement('div');
+    c.className='carta';
+    c.innerHTML=`<div class="icono">${E.icono}</div>
+      <div class="titulo-carta">${E.nombre} · Nv ${nivel}/${E.max}</div>
+      <div class="desc-carta">${E.desc(nivel)}</div>
+      <div class="desc-carta" style="margin-top:6px;color:${alMax?'#8ec07c':(alcanza?'#ffd166':'#c96b3a')}">
+        ${alMax?'NIVEL MÁXIMO':`Mejorar: 🪙${fmt(costo.oro)}`}
+      </div>`;
+    if(!alMax&&alcanza){
+      c.addEventListener('click',()=>{
+        META.oro-=costo.oro;
+        META.permanentes[id]=nivel+1;
+        guardarMeta(); sonido.iniciar(); sonido.subirNivel();
+        pintarMejoras(); pintarMetaInfo();
+      });
+    }else{ c.style.cursor='default'; }
+    dom.listaPermanentes.appendChild(c);
+  }
+  pintarArmas();
+}
+function pintarArmas(){
+  dom.listaArmas.innerHTML='';
+  for(const [id,A] of Object.entries(REGISTRO.armasLegendarias)){
+    const equipada=!!(META.armasDesbloqueadas&&META.armasDesbloqueadas[id]);
+    const r=RAREZA[A.rareza];
+    const c=document.createElement('div');
+    c.className='carta';
+    c.style.borderColor=equipada?r.color:'#5a4630';
+    let pie;
+    if(!A.disponible) pie=`<span style="color:#8a8f7a">PRÓXIMAMENTE</span>`;
+    else if(equipada) pie=`<span style="color:${r.color}">✓ EQUIPADA</span>`;
+    else if((META.gemas||0)>=A.costoGemas) pie=`<span style="color:#ffd166">INVOCAR — cuesta ✦${A.costoGemas}</span>`;
+    else pie=`<span style="color:#c96b3a">Te faltan ✦${A.costoGemas-(META.gemas||0)} gemas</span>`;
+    c.innerHTML=`<div class="icono">${A.icono}</div>
+      <div class="rol" style="color:${r.color}">${r.label}</div>
+      <div class="titulo-carta">${A.nombre}</div>
+      <div class="desc-carta">${A.desc}</div>
+      <div class="desc-carta" style="margin-top:6px">${pie}</div>`;
+    if(A.disponible && !equipada && (META.gemas||0)>=A.costoGemas){
+      c.addEventListener('click',()=>{
+        META.gemas-=A.costoGemas;
+        META.armasDesbloqueadas=META.armasDesbloqueadas||{};
+        META.armasDesbloqueadas[id]=true;
+        guardarMeta(); sonido.iniciar(); sonido.subirNivel();
+        pintarMejoras(); pintarMetaInfo();
+      });
+    }else{ c.style.cursor='default'; }
+    dom.listaArmas.appendChild(c);
+  }
+}
+dom.btnMejoras.addEventListener('click',()=>{
+  ocultarPantallas(); pintarMejoras();
+  dom.pantallaMejoras.classList.remove('oculto');
+});
+dom.btnMejorasVolver.addEventListener('click',volverAlTitulo);
+
+/* sangre opcional (guardada en opciones) */
+function pintarSangre(){
+  dom.btnSangre.textContent=`🩸 sangre: ${META.opciones.sangre?'SÍ':'NO'}`;
+}
+dom.btnSangre.addEventListener('click',()=>{
+  META.opciones.sangre=!META.opciones.sangre;
+  guardarMeta(); pintarSangre();
+});
+pintarSangre();
+
+dom.btnReintentar.addEventListener('click',()=>{ borrarRun(); iniciarPartida(heroeElegidoId); });
+dom.btnMenu.addEventListener('click',volverAlTitulo);
+dom.btnContinuar.addEventListener('click',reanudarTrasCiclo);
+pintarMetaInfo();
+if(esTactil){
+  $('controles-info').textContent='Modo táctil provisional: movete con el joystick; el ataque apunta solo al enemigo más cercano. Botones: 💨 esquiva · ⚡ poder.';
+}
+</script>
 </body>
 </html>
